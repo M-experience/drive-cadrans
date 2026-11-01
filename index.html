@@ -243,7 +243,7 @@ const PAL = {
 const doFetch = (...a) => (window.__MOCK_FETCH || fetch)(...a);
 const gis = () => window.__MOCK_GOOGLE || window.google;
 const APP_URL = location.origin + location.pathname;
-const APP_VERSION = "2026-11-01.8";
+const APP_VERSION = "2026-11-01.9";
 /* Mise à jour automatique : GitHub Pages garde la page en cache 10 min, on vérifie s'il existe une version plus récente */
 (async () => {
   try {
@@ -729,6 +729,26 @@ async function chainOf(acct, f){
   }
   if (!root) root = rootEntry(acct, "shared");
   return {root, chain};
+}
+/* Dossiers qui mènent à un élément important : permet au filtre « ! » de montrer le chemin depuis n'importe quel dossier */
+const markAnc = {perso:{}, edm:{}}, markBusy = {perso:false, edm:false};
+function markAncSet(acct){ const out = new Set(); for (const id in markAnc[acct]) if (S.marks[id] && markAnc[acct][id]) markAnc[acct][id].forEach(x => out.add(x)); return out; }
+async function ensureMarkAnc(acct){
+  if (markBusy[acct] || !connected(acct)) return;
+  const todo = Object.keys(S.marks).filter(id => !(id in markAnc[acct]));
+  if (!todo.length) return;
+  markBusy[acct] = true;
+  try {
+    for (const id of todo) {
+      try {
+        const f = await api(acct, "GET", "files/" + encodeURIComponent(id), {query:{fields:"id,parents,trashed", supportsAllDrives:true}});
+        if (f.trashed) { markAnc[acct][id] = null; continue; }
+        const {root, chain} = await chainOf(acct, f);
+        markAnc[acct][id] = chain.map(c => c.id).concat(root.id === "root" ? ["root", ACCTS[acct].rootId] : [root.id]);
+      } catch (e) { if (e.code === "needs_auth") throw e; markAnc[acct][id] = null; }
+    }
+  } catch (e) {} finally { markBusy[acct] = false; }
+  for (let i = 0; i < S.count; i++) if (S.panes[i].impOnly && S.panes[i].path[0].acct === acct) renderBody(i);
 }
 let resolving = false;
 async function resolvePending(){
@@ -1262,7 +1282,7 @@ function itemsOf(acct, id, p, applyFilter){
   let arr = e.items.slice();
   const f = applyFilter ? p.filter.trim().toLowerCase() : "";
   if (f) arr = arr.filter(x => (x.title || "").toLowerCase().includes(f));
-  if (applyFilter && p.impOnly && id !== "important") arr = arr.filter(x => S.marks[x.id]);
+  if (applyFilter && p.impOnly && id !== "important") { const anc = markAncSet(acct); arr = arr.filter(x => S.marks[x.id] || (isFolder(x) && anc.has(x.id))); }
   if (p.sort === "custom") {
     const ord = S.order[ck(acct, id)] || [], pos = new Map(ord.map((x, n) => [x, n]));
     arr.sort((a, b) => {
@@ -1326,7 +1346,8 @@ function renderPane(i){
     [["name|asc","Nom A → Z"],["name|desc","Nom Z → A"],["modified|desc","Modifiés récemment"],["custom|asc","Ordre libre"]].map(([v, t]) =>
       h("option", {value:v, selected:(p.sort === "custom" ? "custom|asc" : p.sort + "|" + p.dir) === v}, t)));
   const filt = h("input", {type:"search", placeholder:"Filtrer…", value:p.filter, title:"Filtrer le dossier affiché", oninput:e => { p.filter = e.target.value; renderBody(i); }});
-  const impBtn = h("button", {class:"ibtn impbtn" + (p.impOnly ? " on" : ""), title:p.impOnly ? "Afficher tous les éléments" : "N'afficher que les éléments marqués comme importants", onclick:() => { p.impOnly = !p.impOnly; renderPane(i); }}, "!");
+  const impBtn = h("button", {class:"ibtn impbtn" + (p.impOnly ? " on" : ""), title:p.impOnly ? "Afficher tous les éléments" : "N'afficher que les éléments importants, et les dossiers qui y mènent", onclick:() => { p.impOnly = !p.impOnly; renderPane(i); if (p.impOnly) ensureMarkAnc(acct); }}, "!");
+  if (p.impOnly) setTimeout(() => ensureMarkAnc(acct), 0);
   const refresh = h("button", {class:"ibtn", title:"Rafraîchir", html:ICON.refresh, onclick:() => srch[i].open && srch[i].q ? runSearch(i) : loadPane(i, true)});
   const z = srch[i];
   const loupe = h("button", {class:"ibtn" + (z.open ? " on" : ""), title:"Rechercher dans tout le Drive " + ACCTS[acct].label, html:ICON.search, onclick:() => toggleSearch(i)});

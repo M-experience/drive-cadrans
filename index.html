@@ -74,6 +74,10 @@ input[type=search]{width:110px}
 .sel{background:var(--sel)!important;box-shadow:inset 0 0 0 1.5px var(--sel-ring)}
 .ico{display:inline-flex;width:22px;height:22px;flex-shrink:0}
 .ico svg{width:100%;height:100%}
+.ico{position:relative}
+.imp{position:absolute;left:-5px;top:-5px;width:13px;height:13px;border-radius:50%;background:#e5383b;color:#fff;font:800 10px/13px system-ui,sans-serif;text-align:center;box-shadow:0 0 0 2px #fff;pointer-events:auto}
+.art .imp{left:-4px;top:-4px;width:22px;height:22px;font-size:15px;line-height:22px}
+.tile.important .name{color:#c1121f}
 .count{background:#fff;color:var(--text);font-weight:800;border-radius:999px;box-shadow:0 1px 3px rgba(31,43,61,.22);white-space:nowrap}
 .count:empty{display:none}
 .tag{font-size:10.5px;font-weight:800;border-radius:999px;padding:1px 7px;white-space:nowrap;flex-shrink:0}
@@ -237,7 +241,7 @@ const PAL = {
 const doFetch = (...a) => (window.__MOCK_FETCH || fetch)(...a);
 const gis = () => window.__MOCK_GOOGLE || window.google;
 const APP_URL = location.origin + location.pathname;
-const APP_VERSION = "2026-11-01.6";
+const APP_VERSION = "2026-11-01.7";
 /* Mise à jour automatique : GitHub Pages garde la page en cache 10 min, on vérifie s'il existe une version plus récente */
 (async () => {
   try {
@@ -288,12 +292,13 @@ function defaultPane(acct){ return {path:[rootEntry(acct || "perso", "root")], m
 function loadState(){
   let s = null;
   try { s = JSON.parse(localStorage.getItem(STORE)); } catch(e) {}
-  const st = {count:2, layout:"cols", confirm:false, panes:[], colors:{}, pins:[], order:{}};
+  const st = {count:2, layout:"cols", confirm:false, panes:[], colors:{}, pins:[], order:{}, marks:{}};
   if (s && typeof s === "object") {
     if ([1,2,3,4].includes(s.count)) st.count = s.count;
     if (["cols","rows","grid"].includes(s.layout)) st.layout = s.layout;
     st.confirm = !!s.confirm;
     if (s.colors && typeof s.colors === "object") for (const k in s.colors) if (PAL[s.colors[k]]) st.colors[k] = s.colors[k];
+    if (s.marks && typeof s.marks === "object") for (const k in s.marks) if (s.marks[k]) st.marks[k] = 1;
     if (s.order && typeof s.order === "object") for (const k in s.order) if (Array.isArray(s.order[k])) st.order[k] = s.order[k].map(String);
     if (Array.isArray(s.pins)) st.pins = s.pins.filter(p => p && p.id && ACCTS[p.acct]).map(p => ({acct:p.acct, id:String(p.id), title:String(p.title || ""), owner:String(p.owner || "")}));
     if (Array.isArray(s.panes)) st.panes = s.panes.slice(0,4).map(p => {
@@ -316,7 +321,7 @@ function loadState(){
 }
 const S = loadState();
 function save(){
-  try { localStorage.setItem(STORE, JSON.stringify({count:S.count, layout:S.layout, confirm:S.confirm, colors:S.colors, pins:S.pins, order:S.order,
+  try { localStorage.setItem(STORE, JSON.stringify({count:S.count, layout:S.layout, confirm:S.confirm, colors:S.colors, pins:S.pins, order:S.order, marks:S.marks,
     panes:S.panes.map(p => ({path:p.path, mode:p.mode, sort:p.sort, dir:p.dir, pvWide:!!p.pvWide, colW:p.colW || {}}))})); } catch(e) {}
   syncMark();
 }
@@ -328,8 +333,8 @@ let syncMeta = {acc:{}}; try { syncMeta = JSON.parse(localStorage.getItem(SYNC_K
 const hasAppData = k => /drive\.appdata/.test(ACCTS[k].scope || "");
 let syncMissing = [];
 let syncApplying = false, syncTimer = null, syncBusy = false, syncAgain = false, syncState = {ok:null, at:0, via:[], err:""};
-const syncData = () => ({colors:S.colors, order:S.order, pins:S.pins});
-const norm = d => ({colors:(d && d.colors) || {}, order:(d && d.order) || {}, pins:(d && d.pins) || []});
+const syncData = () => ({colors:S.colors, order:S.order, pins:S.pins, marks:S.marks});
+const norm = d => ({colors:(d && d.colors) || {}, order:(d && d.order) || {}, pins:(d && d.pins) || [], marks:(d && d.marks) || {}});
 const syncHash = d => JSON.stringify(norm(d));
 const tsHash = (d, ts) => JSON.stringify([norm(d), ts || {}]);
 if (!syncMeta.ts) syncMeta.ts = {};
@@ -338,7 +343,7 @@ function syncStamp(){
   const cur = norm(JSON.parse(JSON.stringify(syncData())));
   if (!syncMeta.snap) { syncMeta.snap = cur; return false; }
   const old = norm(syncMeta.snap), now = Date.now(); let any = false;
-  for (const [pre, a, b] of [["c:", old.colors, cur.colors], ["o:", old.order, cur.order]])
+  for (const [pre, a, b] of [["c:", old.colors, cur.colors], ["o:", old.order, cur.order], ["m:", old.marks, cur.marks]])
     for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) { syncMeta.ts[pre + k] = now; any = true; }
   if (JSON.stringify(old.pins) !== JSON.stringify(cur.pins)) { syncMeta.ts.p = now; any = true; }
   syncMeta.snap = cur;
@@ -354,6 +359,7 @@ function syncMark(){
 function syncApply(d){
   syncApplying = true;
   S.colors = {}; for (const k in (d.colors || {})) if (PAL[d.colors[k]]) S.colors[k] = d.colors[k];
+  S.marks = {}; for (const k in (d.marks || {})) if (d.marks[k]) S.marks[k] = 1;
   S.order = {}; for (const k in (d.order || {})) if (Array.isArray(d.order[k])) S.order[k] = d.order[k].map(String);
   S.pins = (Array.isArray(d.pins) ? d.pins : []).filter(p => p && p.id && ACCTS[p.acct]).map(p => ({acct:p.acct, id:String(p.id), title:String(p.title || ""), owner:String(p.owner || "")}));
   save();
@@ -363,8 +369,8 @@ function syncApply(d){
 /* Fusion réglage par réglage : la modification la plus récente gagne, sur un poste comme sur l'autre */
 function syncMerge(local, lts, remote, rts){
   local = norm(local); remote = norm(remote); lts = lts || {}; rts = rts || {};
-  const out = {colors:{}, order:{}, pins:[]}, ts = Object.assign({}, lts);
-  for (const [pre, f] of [["c:", "colors"], ["o:", "order"]])
+  const out = {colors:{}, order:{}, pins:[], marks:{}}, ts = Object.assign({}, lts);
+  for (const [pre, f] of [["c:", "colors"], ["o:", "order"], ["m:", "marks"]])
     for (const k of new Set([...Object.keys(local[f]), ...Object.keys(remote[f])])) {
       const l = lts[pre + k] || 0, r = rts[pre + k] || 0;
       const useRemote = r > l || (r === l && k in remote[f]);
@@ -551,7 +557,8 @@ function iconSvg(it){
   const fs = lbl.length > 3 ? 14 : lbl.length > 1 ? 17 : 24;
   return '<svg viewBox="0 0 68 68"><circle cx="34" cy="34" r="34" fill="'+c+'"/><text x="34" y="'+(34 + fs * .36)+'" font-size="'+fs+'" text-anchor="middle" fill="#fff" font-weight="800" font-family="system-ui,sans-serif">'+esc(lbl)+'</text></svg>';
 }
-const iconEl = it => h("span", {class:"ico", html:iconSvg(it)});
+const markEl = it => S.marks[it.id] ? h("span", {class:"imp", title:"Marqué comme important"}, "!") : null;
+const iconEl = it => { const e = h("span", {class:"ico", html:iconSvg(it)}); const m = markEl(it); if (m) e.append(m); return e; };
 function ownerTag(it){
   const me = ACCTS[it.acct].email;
   if (!it.owner || it.owner === me) return null;
@@ -896,6 +903,14 @@ function itemMenu(it, x, y){
     m.append(h("div", {class:"mt"}, clean(it.title)), h("div", {class:"ms"}, kind(it)[1] + (it.owner ? " · " + it.owner : "")));
     if (it.viewUrl) m.append(h("a", {class:"mi", href:it.viewUrl, target:"_blank", rel:"noopener", onclick:() => done()}, "Ouvrir dans Drive"));
     m.append(h("button", {class:"mi", onclick:() => { done(); doRename(it); }}, "Renommer…"));
+    {
+      const pi0 = paneOfItem(it), grp = (pi0 >= 0 && sel[pi0].has(it.id) && sel[pi0].size > 1) ? [...sel[pi0].values()] : [it];
+      const on = !!S.marks[it.id];
+      m.append(h("button", {class:"mi", onclick:() => {
+        grp.forEach(g => { if (on) delete S.marks[g.id]; else S.marks[g.id] = 1; });
+        save(); done(); for (let i = 0; i < S.count; i++) renderBody(i);
+      }}, on ? "Retirer la marque « important »" : "Marquer comme important" + (grp.length > 1 ? " (" + grp.length + " éléments)" : "")));
+    }
     m.append(h("button", {class:"mi", style:"color:var(--danger)", onclick:() => { done(); const pi = paneOfItem(it); const s = pi >= 0 ? sel[pi] : null; doTrash(s && s.has(it.id) && s.size > 1 ? [...s.values()] : [it]); }}, "Mettre à la corbeille"));
     if (isFolder(it)) {
       const pinned = S.pins.some(p => p.id === it.id && p.acct === it.acct);
@@ -1389,7 +1404,8 @@ function renderBody(i){
             h("div", {class:"art" + (isFolder(it) ? "" : " file"), html:iconSvg(it)}),
             h("div", {class:"nwrap"}, h("span", {class:"name"}, clean(it.title))));
           const art = t.firstChild; const tg = ownerTag(it), ct = countEl(it);
-          if (tg) art.append(tg); if (ct) art.append(ct);
+          if (tg) art.append(tg); if (ct) art.append(ct); const mk = markEl(it); if (mk) art.append(mk);
+          if (S.marks[it.id]) t.classList.add("important");
           attachItem(t, i, it, ctx); grid.append(t);
         });
         body.append(grid);

@@ -237,7 +237,7 @@ const PAL = {
 const doFetch = (...a) => (window.__MOCK_FETCH || fetch)(...a);
 const gis = () => window.__MOCK_GOOGLE || window.google;
 const APP_URL = location.origin + location.pathname;
-const APP_VERSION = "2026-11-01.5";
+const APP_VERSION = "2026-11-01.6";
 /* Mise à jour automatique : GitHub Pages garde la page en cache 10 min, on vérifie s'il existe une version plus récente */
 (async () => {
   try {
@@ -331,11 +331,23 @@ let syncApplying = false, syncTimer = null, syncBusy = false, syncAgain = false,
 const syncData = () => ({colors:S.colors, order:S.order, pins:S.pins});
 const norm = d => ({colors:(d && d.colors) || {}, order:(d && d.order) || {}, pins:(d && d.pins) || []});
 const syncHash = d => JSON.stringify(norm(d));
+const tsHash = (d, ts) => JSON.stringify([norm(d), ts || {}]);
+if (!syncMeta.ts) syncMeta.ts = {};
+/* Horodatage par réglage : chaque couleur, chaque ordre de dossier et la liste d'épingles portent l'heure de leur dernière modification */
+function syncStamp(){
+  const cur = norm(JSON.parse(JSON.stringify(syncData())));
+  if (!syncMeta.snap) { syncMeta.snap = cur; return false; }
+  const old = norm(syncMeta.snap), now = Date.now(); let any = false;
+  for (const [pre, a, b] of [["c:", old.colors, cur.colors], ["o:", old.order, cur.order]])
+    for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) { syncMeta.ts[pre + k] = now; any = true; }
+  if (JSON.stringify(old.pins) !== JSON.stringify(cur.pins)) { syncMeta.ts.p = now; any = true; }
+  syncMeta.snap = cur;
+  return any;
+}
 function syncSaveMeta(){ try { localStorage.setItem(SYNC_KEY, JSON.stringify(syncMeta)); } catch(e) {} }
 function syncMark(){
   try { if (syncApplying) return; } catch(e) { return; }
-  const h = syncHash(syncData());
-  if (h === syncMeta.hash) return;
+  if (!syncStamp()) { syncSaveMeta(); return; }
   syncMeta.dirty = true; syncMeta.localTs = Date.now(); syncSaveMeta();
   clearTimeout(syncTimer); syncTimer = setTimeout(() => syncRun(), 2000);
 }
@@ -348,11 +360,24 @@ function syncApply(d){
   syncApplying = false;
   for (let i = 0; i < 4; i++) renderPane(i);
 }
-function syncMerge(local, remote){
-  local = norm(local); remote = norm(remote);
-  const pins = [...remote.pins];
-  for (const p of local.pins) if (!pins.some(x => x.acct === p.acct && x.id === p.id)) pins.push(p);
-  return {colors:Object.assign({}, local.colors, remote.colors), order:Object.assign({}, local.order, remote.order), pins};
+/* Fusion réglage par réglage : la modification la plus récente gagne, sur un poste comme sur l'autre */
+function syncMerge(local, lts, remote, rts){
+  local = norm(local); remote = norm(remote); lts = lts || {}; rts = rts || {};
+  const out = {colors:{}, order:{}, pins:[]}, ts = Object.assign({}, lts);
+  for (const [pre, f] of [["c:", "colors"], ["o:", "order"]])
+    for (const k of new Set([...Object.keys(local[f]), ...Object.keys(remote[f])])) {
+      const l = lts[pre + k] || 0, r = rts[pre + k] || 0;
+      const useRemote = r > l || (r === l && k in remote[f]);
+      const v = useRemote ? remote[f][k] : local[f][k];
+      if (v !== undefined) out[f][k] = v;
+      if (Math.max(l, r)) ts[pre + k] = Math.max(l, r);
+    }
+  const lp = lts.p || 0, rp = rts.p || 0;
+  if (rp > lp) out.pins = remote.pins;
+  else if (lp > rp) out.pins = local.pins;
+  else { out.pins = [...remote.pins]; for (const p of local.pins) if (!out.pins.some(x => x.acct === p.acct && x.id === p.id)) out.pins.push(p); }
+  if (Math.max(lp, rp)) ts.p = Math.max(lp, rp);
+  return {data:out, ts};
 }
 async function syncPushTo(acct, payload){
   const a = ACCTS[acct], m = syncMeta.acc[acct] = syncMeta.acc[acct] || {};
@@ -368,7 +393,7 @@ async function syncPushTo(acct, payload){
   }
   if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error((j.error && j.error.message) || ("écriture refusée (" + r.status + ")")); }
   const j = await r.json();
-  m.fileId = j.id; m.remoteTime = j.modifiedTime; m.hash = syncHash(JSON.parse(payload));
+  m.fileId = j.id; m.remoteTime = j.modifiedTime; { const d = JSON.parse(payload); m.hash = tsHash(d, d.ts); }
 }
 async function syncFetchFrom(acct){
   const m = syncMeta.acc[acct] = syncMeta.acc[acct] || {};
@@ -388,7 +413,7 @@ async function syncFetchFrom(acct){
   const data = r.ok ? await r.json().catch(() => null) : null;
   m.remoteTime = f.modifiedTime;
   if (!data) return {exists:true, changed:false, broken:true};
-  m.hash = syncHash(data);
+  m.hash = tsHash(data, data.ts);
   return {exists:true, changed:true, data, firstTime};
 }
 /* Ancien fichier visible à la racine (version précédente) : on reprend son contenu puis on le met à la corbeille */
@@ -415,18 +440,14 @@ async function syncRun(force){
   try {
     const got = {};
     for (const acct of accts) { got[acct] = await syncFetchFrom(acct); await syncLegacy(acct, got); }
-    const changed = accts.filter(k => got[k].changed).map(k => got[k]).sort((x, y) => (y.data.t || 0) - (x.data.t || 0));
-    const local = syncData();
-    let next = local;
-    if (changed.length) {
-      const newest = changed[0];
-      if (changed.some(c => c.firstTime) && !syncMeta.everSynced) next = changed.reduceRight((acc, c) => syncMerge(acc, c.data), local);   /* premier passage sur ce poste : fusion */
-      else if (syncMeta.dirty && (syncMeta.localTs || 0) > (newest.data.t || 0)) next = local;   /* modification locale plus récente */
-      else next = norm(newest.data);
-      if (syncHash(next) !== syncHash(local)) syncApply(next);
-    }
-    const finalHash = syncHash(syncData());
-    const payload = JSON.stringify(Object.assign({app:"drive-cadrans", t:syncMeta.dirty ? (syncMeta.localTs || Date.now()) : (changed.length ? (changed[0].data.t || Date.now()) : Date.now())}, syncData()));
+    syncStamp();
+    const local = norm(JSON.parse(JSON.stringify(syncData())));
+    let cur = {data:local, ts:syncMeta.ts};
+    for (const k of accts) if (got[k].changed) cur = syncMerge(cur.data, cur.ts, got[k].data, got[k].data.ts);
+    if (syncHash(cur.data) !== syncHash(local)) syncApply(cur.data);
+    syncMeta.ts = cur.ts; syncMeta.snap = norm(JSON.parse(JSON.stringify(syncData())));
+    const finalHash = tsHash(syncData(), syncMeta.ts);
+    const payload = JSON.stringify(Object.assign({app:"drive-cadrans", t:Date.now()}, syncData(), {ts:syncMeta.ts}));
     for (const acct of accts) if (!got[acct].exists || syncMeta.acc[acct].hash !== finalHash) await syncPushTo(acct, payload);
     syncMeta.hash = finalHash; syncMeta.dirty = false; syncMeta.everSynced = true;
     syncState = {ok:true, at:Date.now(), via:accts, err:""};
@@ -1571,7 +1592,8 @@ $("#syncSt").addEventListener("click", async () => {
   if (syncMissing.length) { for (const k of [...syncMissing]) { try { await connect(k); } catch(e) { return; } } return; }
   syncRun(true);
 });
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && Date.now() - lastSync > 60000) autoRefresh(); });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { syncRun(); if (Date.now() - lastSync > 60000) autoRefresh(); } });
+window.addEventListener("focus", () => syncRun());
 stamp();
 setInterval(() => { for (const k of ACCT_KEYS) { const a = ACCTS[k]; if (a.token && a.exp < Date.now()) needAuth(k); } }, 30000);
 })();

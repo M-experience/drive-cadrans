@@ -233,7 +233,7 @@ const PAL = {
 const doFetch = (...a) => (window.__MOCK_FETCH || fetch)(...a);
 const gis = () => window.__MOCK_GOOGLE || window.google;
 const APP_URL = location.origin + location.pathname;
-const APP_VERSION = "2026-11-01.3";
+const APP_VERSION = "2026-11-01.4";
 /* Mise à jour automatique : GitHub Pages garde la page en cache 10 min, on vérifie s'il existe une version plus récente */
 (async () => {
   try {
@@ -314,6 +314,85 @@ const S = loadState();
 function save(){
   try { localStorage.setItem(STORE, JSON.stringify({count:S.count, layout:S.layout, confirm:S.confirm, colors:S.colors, pins:S.pins, order:S.order,
     panes:S.panes.map(p => ({path:p.path, mode:p.mode, sort:p.sort, dir:p.dir, pvWide:!!p.pvWide, colW:p.colW || {}}))})); } catch(e) {}
+  syncMark();
+}
+
+/* ===== Synchronisation entre postes : couleurs, ordre libre et épingles dans un fichier du Drive perso ===== */
+const SYNC_KEY = "drive-cadrans-web.sync", SYNC_NAME = "Drive cadrans - réglages (ne pas supprimer).json", SYNC_ACCT = "perso";
+const UPLOAD = "https://www.googleapis.com/upload/drive/v3/files";
+let syncMeta = {}; try { syncMeta = JSON.parse(localStorage.getItem(SYNC_KEY)) || {}; } catch(e) {}
+let syncApplying = false, syncTimer = null, syncBusy = false;
+const syncData = () => ({colors:S.colors, order:S.order, pins:S.pins});
+const syncHash = d => JSON.stringify(d);
+function syncSaveMeta(){ try { localStorage.setItem(SYNC_KEY, JSON.stringify(syncMeta)); } catch(e) {} }
+function syncMark(){
+  try { if (syncApplying) return; } catch(e) { return; }
+  const h = syncHash(syncData());
+  if (h === syncMeta.hash) return;
+  syncMeta.dirty = true; syncMeta.localTs = Date.now(); syncSaveMeta();
+  clearTimeout(syncTimer); syncTimer = setTimeout(() => syncRun(), 2500);
+}
+function syncApply(d){
+  syncApplying = true;
+  S.colors = {}; for (const k in (d.colors || {})) if (PAL[d.colors[k]]) S.colors[k] = d.colors[k];
+  S.order = {}; for (const k in (d.order || {})) if (Array.isArray(d.order[k])) S.order[k] = d.order[k].map(String);
+  S.pins = (Array.isArray(d.pins) ? d.pins : []).filter(p => p && p.id && ACCTS[p.acct]).map(p => ({acct:p.acct, id:String(p.id), title:String(p.title || ""), owner:String(p.owner || "")}));
+  save();
+  syncApplying = false;
+  for (let i = 0; i < 4; i++) renderPane(i);
+}
+function syncMerge(local, remote){
+  const pins = [...(remote.pins || [])];
+  for (const p of (local.pins || [])) if (!pins.some(x => x.acct === p.acct && x.id === p.id)) pins.push(p);
+  return {colors:Object.assign({}, local.colors, remote.colors), order:Object.assign({}, local.order, remote.order), pins};
+}
+async function syncPush(){
+  const a = ACCTS[SYNC_ACCT], body = JSON.stringify(Object.assign({app:"drive-cadrans", t:Date.now()}, syncData()));
+  let r;
+  if (syncMeta.fileId) {
+    r = await doFetch(UPLOAD + "/" + encodeURIComponent(syncMeta.fileId) + "?uploadType=media&fields=id,modifiedTime", {method:"PATCH", headers:{Authorization:"Bearer " + a.token, "Content-Type":"application/json"}, body});
+    if (r.status === 404) { syncMeta.fileId = null; return syncPush(); }
+  } else {
+    const bnd = "dcsync" + Math.random().toString(36).slice(2);
+    const meta = {name:SYNC_NAME, mimeType:"application/json", parents:["root"], description:"Réglages de l'app Drive cadrans (couleurs, ordre, épingles), partagés entre vos ordinateurs."};
+    const mp = "--" + bnd + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" + JSON.stringify(meta) + "\r\n--" + bnd + "\r\nContent-Type: application/json\r\n\r\n" + body + "\r\n--" + bnd + "--";
+    r = await doFetch(UPLOAD + "?uploadType=multipart&fields=id,modifiedTime", {method:"POST", headers:{Authorization:"Bearer " + a.token, "Content-Type":"multipart/related; boundary=" + bnd}, body:mp});
+  }
+  if (!r.ok) throw new Error("sync push " + r.status);
+  const j = await r.json();
+  syncMeta.fileId = j.id; syncMeta.remoteTime = j.modifiedTime; syncMeta.dirty = false; syncMeta.hash = syncHash(syncData()); syncSaveMeta();
+}
+async function syncRun(){
+  if (syncBusy || !connected(SYNC_ACCT)) return;
+  syncBusy = true;
+  try {
+    let f = null;
+    if (syncMeta.fileId) {
+      try { f = await api(SYNC_ACCT, "GET", "files/" + encodeURIComponent(syncMeta.fileId), {query:{fields:"id,modifiedTime,trashed"}}); if (f.trashed) f = null; } catch (e) { if (e.code === "needs_auth") throw e; f = null; }
+    }
+    if (!f) {
+      const res = await api(SYNC_ACCT, "GET", "files", {query:{q:"name = '" + qid(SYNC_NAME) + "' and 'root' in parents and trashed = false", fields:"files(id,modifiedTime)", orderBy:"modifiedTime desc", pageSize:5, corpora:"user"}});
+      f = (res.files || [])[0] || null;
+      if (!f) syncMeta.fileId = null;
+    }
+    if (!f) { await syncPush(); return; }
+    syncMeta.fileId = f.id;
+    if (f.modifiedTime === syncMeta.remoteTime) { if (syncMeta.dirty) await syncPush(); return; }
+    const r = await doFetch(API + "files/" + encodeURIComponent(f.id) + "?alt=media", {method:"GET", headers:{Authorization:"Bearer " + ACCTS[SYNC_ACCT].token}});
+    const remote = r.ok ? await r.json().catch(() => null) : null;
+    if (!remote) { await syncPush(); return; }
+    const local = syncData();
+    let next;
+    if (!syncMeta.remoteTime) next = syncMerge(local, remote);           /* première synchronisation de ce poste : on fusionne */
+    else if (syncMeta.dirty && syncMeta.localTs > (remote.t || 0)) next = local;   /* modification locale plus récente */
+    else next = remote;
+    syncMeta.remoteTime = f.modifiedTime;
+    if (syncHash({colors:next.colors || {}, order:next.order || {}, pins:next.pins || []}) !== syncHash(local)) syncApply(next);
+    syncMeta.hash = syncHash(syncData()); syncSaveMeta();
+    if (syncHash(syncData()) !== syncHash({colors:remote.colors || {}, order:remote.order || {}, pins:remote.pins || []})) await syncPush();
+    else { syncMeta.dirty = false; syncSaveMeta(); }
+  } catch (e) { /* silencieux : on réessaiera au prochain cycle */ }
+  finally { syncBusy = false; }
 }
 
 /* ===== Utilitaires ===== */
@@ -436,6 +515,7 @@ function connect(acct, switchAccount){
       saveTok(); renderAccts();
       for (let i = 0; i < S.count; i++) if (S.panes[i].path[0].acct === acct) { renderPane(i); loadPane(i); }
       resolvePending();
+      if (acct === SYNC_ACCT) syncRun();
       res();
     };
     a.tc.error_callback = e => { if (e && e.type !== "popup_closed") toast("Connexion impossible : " + (e.message || e.type), {err:true}); rej(new Error(e && e.type)); };
@@ -1412,6 +1492,7 @@ function stamp(){ lastSync = Date.now(); const b = $("#btnRefreshAll"); if (b) b
 $("#btnRefreshAll").addEventListener("click", () => { cache.clear(); refreshAll(); stamp(); toast("Tous les cadrans ont été relus depuis Google Drive."); });
 const sig = e => e ? e.items.map(x => x.id + "|" + x.title + "|" + x.modifiedTime + "|" + x.parentId).join(";") : "";
 async function autoRefresh(){
+  if (document.visibilityState === "visible") syncRun();
   if (document.visibilityState !== "visible" || drag || document.querySelector(".menu,.modal-bg") || $("#busy").classList.contains("on")) return;
   for (let i = 0; i < S.count; i++) {
     const acct = S.panes[i].path[0].acct;
@@ -1426,6 +1507,7 @@ async function autoRefresh(){
   stamp();
 }
 setInterval(autoRefresh, 60000);
+setTimeout(syncRun, 800);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && Date.now() - lastSync > 60000) autoRefresh(); });
 stamp();
 setInterval(() => { for (const k of ACCT_KEYS) { const a = ACCTS[k]; if (a.token && a.exp < Date.now()) needAuth(k); } }, 30000);

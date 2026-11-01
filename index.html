@@ -233,7 +233,7 @@ const PAL = {
 const doFetch = (...a) => (window.__MOCK_FETCH || fetch)(...a);
 const gis = () => window.__MOCK_GOOGLE || window.google;
 const APP_URL = location.origin + location.pathname;
-const APP_VERSION = "2026-11-01.2";
+const APP_VERSION = "2026-11-01.3";
 /* Mise à jour automatique : GitHub Pages garde la page en cache 10 min, on vérifie s'il existe une version plus récente */
 (async () => {
   try {
@@ -272,6 +272,7 @@ const ICON = {
   list:'<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 4h9M5 8h9M5 12h9"/><circle cx="2" cy="4" r=".7" fill="currentColor"/><circle cx="2" cy="8" r=".7" fill="currentColor"/><circle cx="2" cy="12" r=".7" fill="currentColor"/></svg>',
   grid:'<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" rx="1.3"/><rect x="9" y="2" width="5" height="5" rx="1.3"/><rect x="2" y="9" width="5" height="5" rx="1.3"/><rect x="9" y="9" width="5" height="5" rx="1.3"/></svg>',
   cols:'<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M6 2.5v11M10.5 2.5v11"/></svg>',
+  home:'<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5 8 3l5.5 4.5"/><path d="M4 6.5V13h3V9.5h2V13h3V6.5"/></svg>',
   up:'<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg>',
   search:'<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.6"/><path d="M10.4 10.4L14 14"/></svg>',
   refresh:'<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9"/><path d="M13.5 2.5v3h-3"/></svg>'
@@ -1111,7 +1112,10 @@ function renderPane(i){
       S.pins.filter(x => x.acct === a).map(x => h("option", {value:a + "|pin:" + x.id, selected:acct === a && rootId === x.id}, "★ " + clean(x.title))))),
     (!VIRT[rootId] && !rootId.startsWith("drive:") && !S.pins.some(x => x.acct === acct && x.id === rootId)) ? h("option", {value:acct + "|pin:" + rootId, selected:true}, clean(p.path[0].title)) : null);
   const chip = h("span", {class:"space " + acct, title:acctName(acct)}, ACCTS[acct].label.toUpperCase());
-  const up = h("button", {class:"ibtn", title:"Dossier parent", disabled:p.path.length < 2, html:ICON.up, onclick:() => goTo(i, p.path.length - 2)});
+  const toMyDrive = () => { p.path = [rootEntry(acct, "root")]; p.preview = null; sel[i].clear(); if (srch[i].open) { srch[i].open = false; srch[i].q = ""; srch[i].results = null; srch[i].seq++; } renderPane(i); loadPane(i); save(); };
+  const atMyDrive = p.path.length === 1 && rootId === "root";
+  const home = h("button", {class:"ibtn", title:"Revenir à Mon Drive " + ACCTS[acct].label, disabled:atMyDrive && !srch[i].open, html:ICON.home, onclick:toMyDrive});
+  const up = h("button", {class:"ibtn", title:p.path.length < 2 ? "Revenir à Mon Drive" : "Dossier parent", disabled:atMyDrive, html:ICON.up, onclick:() => p.path.length < 2 ? toMyDrive() : goTo(i, p.path.length - 2)});
   const crumbs = h("div", {class:"crumbs"});
   p.path.forEach((c, k) => {
     if (k) crumbs.append(h("span", {class:"sep"}, "›"));
@@ -1129,7 +1133,7 @@ function renderPane(i){
   const z = srch[i];
   const loupe = h("button", {class:"ibtn" + (z.open ? " on" : ""), title:"Rechercher dans tout le Drive " + ACCTS[acct].label, html:ICON.search, onclick:() => toggleSearch(i)});
   const closeBtn = S.count > 1 ? h("button", {class:"ibtn pclose", title:"Fermer ce cadran", onclick:() => closePane(i)}, "×") : null;
-  el.append(h("div", {class:"pane-head"}, chip, rootSel, up, crumbs, loupe, filt, sortSel, modes, refresh, closeBtn));
+  el.append(h("div", {class:"pane-head"}, chip, rootSel, home, up, crumbs, loupe, filt, sortSel, modes, refresh, closeBtn));
   if (z.open) {
     const inp = h("input", {type:"search", value:z.q, placeholder:"Rechercher dans tout le Drive " + ACCTS[acct].label + "…",
       oninput:e => { z.q = e.target.value; queueSearch(i); },

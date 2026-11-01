@@ -109,9 +109,11 @@ input[type=search]{width:110px}
 .col{flex:0 0 230px;border-right:1px solid var(--line);overflow-y:auto;height:100%;padding:4px 0;position:relative}
 .colwrap{position:relative;flex:0 0 auto;height:100%;display:flex}
 .colwrap .col{flex:1 1 auto}
-.cgrip{position:absolute;top:0;right:-4px;width:8px;height:100%;cursor:col-resize;z-index:4}
-.cgrip::after{content:"";position:absolute;left:3px;top:50%;width:2px;height:28px;margin-top:-14px;border-radius:2px;background:rgba(31,43,61,.18);opacity:0;transition:opacity .15s}
+.cgrip{position:absolute;top:0;right:-6px;width:12px;height:100%;cursor:col-resize;z-index:4}
+.cgrip::after{content:"";position:absolute;left:4px;top:50%;width:4px;height:34px;margin-top:-17px;border-radius:3px;background:rgba(31,43,61,.22);opacity:.55;transition:opacity .15s,background .15s}
+.cgrip:hover::after{background:var(--accent)}
 .colwrap:hover .cgrip::after,.cgrip.on::after{opacity:1}
+.cgrip.on::after{background:var(--accent)}
 body.resizing,body.resizing *{cursor:col-resize!important;user-select:none!important}
 .citem{display:flex;align-items:center;gap:7px;padding:5px 8px;margin:1px 5px;border-radius:9px;user-select:none;font-weight:600}
 .citem:hover{background:var(--hover)}
@@ -231,6 +233,15 @@ const PAL = {
 const doFetch = (...a) => (window.__MOCK_FETCH || fetch)(...a);
 const gis = () => window.__MOCK_GOOGLE || window.google;
 const APP_URL = location.origin + location.pathname;
+const APP_VERSION = "2026-11-01.2";
+/* Mise à jour automatique : GitHub Pages garde la page en cache 10 min, on vérifie s'il existe une version plus récente */
+(async () => {
+  try {
+    const t = await (await fetch(location.pathname, {cache:"reload"})).text();
+    const m = t.match(/const APP_VERSION = "([^"]+)"/);
+    if (m && m[1] !== APP_VERSION && sessionStorage.getItem("dc-reloaded") !== m[1]) { sessionStorage.setItem("dc-reloaded", m[1]); location.reload(); }
+  } catch(e) {}
+})();
 
 let CLIENT_ID = CLIENT_ID_BUILTIN;
 try { const c = JSON.parse(localStorage.getItem(CFG) || "{}"); if (!CLIENT_ID && c.clientId) CLIENT_ID = c.clientId; } catch(e) {}
@@ -253,6 +264,7 @@ const sel = [0,1,2,3].map(() => new Map());
 const anchor = [null,null,null,null];
 const paneEls = [0,1,2,3].map(() => { const d = document.createElement("div"); d.className = "pane"; return d; });
 const lastKey = ["","","",""];
+const lastPv = ["","","",""];
 let undoBatch = null, drag = null, hl = null;
 let pendingFolder = new URLSearchParams(location.search).get("folder");
 
@@ -1221,8 +1233,10 @@ function renderBody(i){
     }
   }
   if (old) old.replaceWith(body); else el.insertBefore(body, el.querySelector(".status"));
-  if (keep) { body.scrollTop = oldTop; const c = body.querySelector(".columns"); if (c) c.scrollLeft = oldLeft; }
+  const pvKey = p.mode === "columns" && p.preview ? p.preview.id + (p.pvWide ? "w" : "") : "";
+  if (keep) { body.scrollTop = oldTop; const c = body.querySelector(".columns"); if (c) c.scrollLeft = (pvKey && pvKey !== lastPv[i]) ? c.scrollWidth : oldLeft; }
   else { const c = body.querySelector(".columns"); if (c) c.scrollLeft = c.scrollWidth; }
+  lastPv[i] = pvKey;
   lastKey[i] = key;
   if (folderIds.length) wantCounts(acct, folderIds);
   const st = el.querySelector(".status");
@@ -1339,7 +1353,7 @@ function layout(){
 function closePane(i){
   if (S.count <= 1) return;
   const mv = arr => { const [x] = arr.splice(i, 1); arr.push(x); };
-  mv(S.panes); mv(paneEls); mv(sel); mv(anchor); mv(paneErr); mv(lastKey); mv(srch);
+  mv(S.panes); mv(paneEls); mv(sel); mv(anchor); mv(paneErr); mv(lastKey); mv(lastPv); mv(srch);
   sel.forEach(s => s.clear());
   S.count--; layout(); renderTop();
   for (let k = 0; k < 4; k++) renderPane(k);

@@ -1,0 +1,1417 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drive · cadrans</title>
+<meta name="theme-color" content="#e1ecf7">
+<link rel="manifest" href="manifest.webmanifest?v=2">
+<link rel="icon" href="icon.svg?v=2" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png?v=2">
+<style>
+:root{
+  --text:#1f2b3d; --muted:#6a7890; --line:rgba(31,43,61,.10);
+  --card:rgba(255,255,255,.58); --card-solid:#f7fbfd; --hover:rgba(255,255,255,.75);
+  --accent:#3b7ddd; --sel:rgba(59,125,221,.16); --sel-ring:rgba(59,125,221,.55);
+  --drop:rgba(46,158,91,.16); --drop-line:#2e9e5b; --danger:#c84545;
+  --edm:#EC5A64; --edm-navy:#144162; --perso:#3b7ddd;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font:14px/1.4 system-ui,-apple-system,"SF Pro Text","Segoe UI",Roboto,sans-serif;color:var(--text);
+  background:linear-gradient(160deg,#eaf7f8 0%,#e1ecf7 50%,#d5e2f4 100%);display:flex;flex-direction:column;min-height:560px}
+body::before{content:"";display:block;height:4px;background:linear-gradient(90deg,#7fd3d8,#8fb8ec 60%,#a9c3f0)}
+button{font:inherit;color:inherit}
+header.top{display:flex;align-items:center;gap:14px;padding:10px 16px;flex-wrap:wrap}
+header.top h1{font-size:16px;margin:0;font-weight:800;letter-spacing:.1px}
+.grp{display:inline-flex;align-items:center;gap:7px;color:var(--muted);font-weight:600;font-size:13px}
+.seg{display:inline-flex;border-radius:999px;overflow:hidden;background:var(--card);border:1px solid rgba(255,255,255,.8);box-shadow:0 1px 3px rgba(31,43,61,.06)}
+.seg button{border:0;background:transparent;padding:5px 11px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;color:var(--text);font-weight:600;font-size:13px}
+.seg button.on{background:#fff;color:var(--accent);box-shadow:0 1px 3px rgba(31,43,61,.12)}
+.grow{flex:1}
+label.chk{display:inline-flex;gap:6px;align-items:center;color:var(--muted);cursor:pointer;font-size:13px;font-weight:600}
+.busy{color:var(--accent);font-weight:700;font-size:13px;display:none}
+.busy.on{display:inline}
+.pill-btn{border:1px solid rgba(255,255,255,.85);background:var(--card);border-radius:999px;padding:5px 12px;cursor:pointer;font-weight:600;font-size:13px}
+.pill-btn:hover:not(:disabled){background:#fff}
+.pill-btn:disabled{opacity:.45;cursor:default}
+#banner{display:none;margin:0 16px 6px;padding:9px 14px;border-radius:12px;background:#fff4d6;color:#5f4500}
+#banner.on{display:block}
+main{flex:1;display:grid;gap:12px;padding:4px 14px 14px;min-height:0}
+main[data-layout="cols"]{grid-template-columns:repeat(var(--n),minmax(0,1fr));grid-template-rows:minmax(0,1fr)}
+main[data-layout="rows"]{grid-template-rows:repeat(var(--n),minmax(0,1fr));grid-template-columns:minmax(0,1fr)}
+main[data-layout="grid"]{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:minmax(0,1fr)}
+main[data-layout="grid"][data-n="1"]{grid-template-columns:minmax(0,1fr)}
+main[data-layout="grid"][data-n="3"] .pane:nth-child(3){grid-column:span 2}
+.pane{container-type:inline-size;background:var(--card);border:1px solid rgba(255,255,255,.75);border-radius:18px;display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;
+  box-shadow:0 6px 28px rgba(40,70,110,.09);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.pane-head{display:flex;align-items:center;gap:7px;padding:9px 10px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.space{font-size:11px;font-weight:800;letter-spacing:.3px;color:#fff;border-radius:999px;padding:2px 9px;flex-shrink:0}
+.space.perso{background:var(--perso)} .space.edm{background:var(--edm)}
+.crumbs{display:flex;align-items:center;gap:1px;flex:1;min-width:140px;overflow:hidden;white-space:nowrap}
+.crumb{border:0;background:none;padding:3px 6px;border-radius:7px;cursor:pointer;max-width:170px;overflow:hidden;text-overflow:ellipsis;flex-shrink:1;font-weight:600;color:var(--muted)}
+.crumb:hover{background:var(--hover)}
+.crumb.last{font-weight:800;color:var(--text);flex-shrink:0}
+.sep{color:var(--muted)}
+.ibtn{border:1px solid rgba(255,255,255,.85);background:rgba(255,255,255,.5);border-radius:9px;padding:4px 7px;cursor:pointer;display:inline-flex;align-items:center;color:var(--text)}
+.ibtn:hover{background:#fff}
+.ibtn:disabled{opacity:.35;cursor:default;background:transparent}
+select,input[type=search]{font:inherit;font-size:13px;color:var(--text);background:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.9);border-radius:9px;padding:4px 7px;max-width:190px}
+input[type=search]{width:110px}
+.pane-body{flex:1;overflow:auto;position:relative;min-height:0}
+.pane-body.ncol{overflow:hidden}
+.drop-on{background:var(--drop)!important;box-shadow:inset 0 0 0 2px var(--drop-line)}
+.ins-before{box-shadow:inset 4px 0 0 var(--accent)!important;background:rgba(59,125,221,.07)!important}
+.ins-after{box-shadow:inset -4px 0 0 var(--accent)!important;background:rgba(59,125,221,.07)!important}
+.drop-target{background:var(--drop)!important;box-shadow:inset 0 0 0 2px var(--drop-line)}
+.status{padding:5px 12px;border-top:1px solid var(--line);color:var(--muted);font-size:12px;font-weight:600;display:flex;gap:12px;white-space:nowrap;overflow:hidden}
+.msg{padding:26px 18px;color:var(--muted);text-align:center;font-weight:600}
+.msg.err{color:var(--danger)}
+.msg .help{max-width:440px;margin:10px auto 0;font-weight:500;line-height:1.5;text-align:left;color:var(--text)}
+.msg button{margin-top:10px}
+.name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.meta{color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sel{background:var(--sel)!important;box-shadow:inset 0 0 0 1.5px var(--sel-ring)}
+.ico{display:inline-flex;width:22px;height:22px;flex-shrink:0}
+.ico svg{width:100%;height:100%}
+.count{background:#fff;color:var(--text);font-weight:800;border-radius:999px;box-shadow:0 1px 3px rgba(31,43,61,.22);white-space:nowrap}
+.count:empty{display:none}
+.tag{font-size:10.5px;font-weight:800;border-radius:999px;padding:1px 7px;white-space:nowrap;flex-shrink:0}
+.tag.edm{background:var(--edm);color:#fff}
+.tag.ext{background:#ecc85a;color:#4a3800}
+/* Liste */
+.list .row{display:grid;grid-template-columns:24px minmax(0,1fr) 104px 64px;align-items:center;gap:9px;padding:5px 12px;user-select:none;cursor:default}
+.list .row:not(.hdr):hover{background:var(--hover)}
+.list .hdr{position:sticky;top:0;background:var(--card-solid);color:var(--muted);font-size:12px;border-bottom:1px solid var(--line);z-index:1}
+.list .nm{display:flex;align-items:center;gap:7px;min-width:0;font-weight:600}
+.list .count,.citem .count{font-size:11px;padding:0 7px}
+.hdr button{border:0;background:none;padding:0;cursor:pointer;color:var(--muted);text-align:left;font-size:12px;font-weight:600}
+.hdr button.on{color:var(--text);font-weight:800}
+@container (max-width:430px){
+  .list .row{grid-template-columns:24px minmax(0,1fr)}
+  .list .row > :nth-child(3), .list .row > :nth-child(4){display:none}
+}
+/* Icônes */
+.icons{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:20px 8px;padding:20px 12px;align-content:start}
+.tile{position:relative;display:flex;flex-direction:column;align-items:center;gap:9px;padding:14px 4px 10px;border-radius:16px;text-align:center;user-select:none}
+.tile:hover{background:var(--hover)}
+.art{position:relative;width:84px;height:68px;display:flex;align-items:center;justify-content:center}
+.art svg{width:100%;height:100%;filter:drop-shadow(0 2px 3px rgba(31,43,61,.10))}
+.art.file svg{width:68px;height:68px}
+.art .count{position:absolute;right:-12px;bottom:-8px;font-size:15px;padding:1px 10px;min-width:30px;text-align:center}
+.art .tag{position:absolute;top:-12px;left:50%;transform:translateX(-50%)}
+.tile .nwrap{position:relative;align-self:stretch;height:30px}
+.tile .name{position:absolute;left:0;right:0;top:0;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:12px;font-weight:700;word-break:break-word;line-height:1.25;padding:0 3px;border-radius:7px}
+.list .row:not(.hdr):hover .name,.citem:hover .name{white-space:normal;overflow:visible;word-break:break-word}
+.tile:hover .name{-webkit-line-clamp:unset;display:block;overflow:visible;z-index:6;background:#fff;box-shadow:0 3px 12px rgba(31,43,61,.16);padding:2px 5px}
+/* Colonnes */
+.columns{display:flex;height:100%;overflow-x:auto;overflow-y:hidden}
+.col{flex:0 0 230px;border-right:1px solid var(--line);overflow-y:auto;height:100%;padding:4px 0;position:relative}
+.colwrap{position:relative;flex:0 0 auto;height:100%;display:flex}
+.colwrap .col{flex:1 1 auto}
+.cgrip{position:absolute;top:0;right:-4px;width:8px;height:100%;cursor:col-resize;z-index:4}
+.cgrip::after{content:"";position:absolute;left:3px;top:50%;width:2px;height:28px;margin-top:-14px;border-radius:2px;background:rgba(31,43,61,.18);opacity:0;transition:opacity .15s}
+.colwrap:hover .cgrip::after,.cgrip.on::after{opacity:1}
+body.resizing,body.resizing *{cursor:col-resize!important;user-select:none!important}
+.citem{display:flex;align-items:center;gap:7px;padding:5px 8px;margin:1px 5px;border-radius:9px;user-select:none;font-weight:600}
+.citem:hover{background:var(--hover)}
+.citem.open-path{background:#fff;font-weight:800}
+.chev{color:var(--muted);flex-shrink:0}
+.citem .count{margin-left:auto}
+.preview{flex:0 0 calc(100% - 230px);min-width:380px;padding:14px;display:flex;flex-direction:column;gap:10px;min-height:0}
+.pv-top{display:flex;align-items:center;gap:10px}
+.pv-top .ico{width:30px;height:30px}
+.pv-meta{font-size:12px;color:var(--muted);font-weight:600;display:flex;flex-wrap:wrap;gap:4px 12px}
+.pv-box{flex:1;min-height:0;background:#fff;border-radius:12px;box-shadow:0 2px 10px rgba(31,43,61,.08);overflow:auto;display:flex;align-items:center;justify-content:center}
+.pv-box iframe{width:100%;height:100%;border:0;align-self:stretch}
+.pv-box img{max-width:100%;max-height:100%;object-fit:contain}
+.pv-box pre{align-self:stretch;width:100%;margin:0;padding:14px;font-size:12px;white-space:pre-wrap;word-break:break-word}
+.preview .art{margin-bottom:14px}
+.preview .pv-name{font-weight:800;word-break:break-word;flex:1}
+.preview.wide{flex-basis:100%}
+.pv-top .ibtn.sq{padding:4px 9px;font-size:15px;line-height:1;background:#fff;border-color:var(--line)}
+.sbar{display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.35)}
+.sbar input[type=search]{flex:1;max-width:none;width:auto;font-size:14px;padding:6px 10px}
+.sbar .sico{color:var(--muted);display:inline-flex}
+.scb{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap;cursor:pointer}
+.ibtn.on{background:#fff;color:var(--accent,#2f6fd6);border-color:var(--line)}
+.list .srow{grid-template-columns:24px minmax(0,1fr) minmax(90px,34%) 96px}
+.sloc{all:unset;cursor:pointer;color:var(--muted);font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:2px 6px;border-radius:7px}
+.sloc:hover{background:#fff;color:var(--text);text-decoration:underline}
+.pclose{margin-left:2px;font-size:17px;line-height:1;padding:3px 8px}
+.pclose:hover{background:#fde8e8;color:var(--danger)}
+.preview dl{display:grid;grid-template-columns:auto 1fr;gap:5px 10px;margin:0 0 16px;font-size:12.5px}
+.preview dt{color:var(--muted);font-weight:600}
+.preview dd{margin:0;word-break:break-word}
+a.btn{display:inline-block;padding:6px 13px;border-radius:999px;background:var(--accent);color:#fff;text-decoration:none;font-weight:700}
+/* Menus et messages */
+#toasts{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:7px;z-index:20;align-items:center}
+.toast{background:#1f2b3d;color:#fff;padding:9px 10px 9px 15px;border-radius:12px;display:flex;gap:10px;align-items:center;box-shadow:0 8px 22px rgba(0,0,0,.22);max-width:600px;font-size:13.5px}
+.toast.err{background:var(--danger)}
+.toast button{background:none;border:1px solid rgba(255,255,255,.45);color:#fff;border-radius:999px;padding:2px 10px;cursor:pointer}
+.toast button.x{border:0;font-size:17px;line-height:1;padding:0 4px}
+#ghost{position:fixed;top:-200px;left:-200px;padding:6px 12px;border-radius:999px;background:var(--accent);color:#fff;font-weight:700;white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis}
+.menu{position:fixed;z-index:40;background:#fff;border-radius:14px;box-shadow:0 12px 36px rgba(31,43,61,.25);padding:6px;min-width:230px;max-width:340px}
+.menu .mt{padding:8px 10px 4px;font-weight:800;font-size:13px;word-break:break-word}
+.menu .ms{padding:0 10px 8px;color:var(--muted);font-size:12px;font-weight:600}
+.menu button.mi{display:block;width:100%;text-align:left;border:0;background:none;padding:8px 10px;border-radius:9px;cursor:pointer;font-weight:700}
+.menu button.mi:hover,.menu button.mi:focus{background:#eef4fd;outline:none}
+.menu button.mi small{display:block;font-weight:500;color:var(--muted);font-size:12px;margin-top:1px}
+.menu a.mi{display:block;padding:8px 10px;border-radius:9px;color:var(--text);text-decoration:none;font-weight:700}
+.menu a.mi:hover{background:#eef4fd}
+.menu .sw{display:flex;flex-wrap:wrap;gap:6px;padding:6px 10px 8px}
+.menu .sw button{width:22px;height:22px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(31,43,61,.15);cursor:pointer;padding:0}
+.menu .sw button.on{box-shadow:0 0 0 2px var(--accent)}
+.menu hr{border:0;border-top:1px solid var(--line);margin:4px 6px}
+.modal-bg{position:fixed;inset:0;background:rgba(20,30,45,.3);display:flex;align-items:center;justify-content:center;z-index:30}
+.modal{background:#fff;border-radius:16px;padding:20px;max-width:430px;box-shadow:0 14px 40px rgba(0,0,0,.25)}
+.modal p{margin:0 0 16px}
+.modal .acts{display:flex;justify-content:flex-end;gap:8px}
+.modal .acts button{padding:6px 14px;border-radius:999px;border:1px solid var(--line);background:transparent;cursor:pointer;font-weight:600}
+.modal .acts button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+
+.acct{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.85);background:var(--card);border-radius:999px;padding:4px 11px 4px 6px;cursor:pointer;font-weight:700;font-size:12.5px}
+.acct:hover{background:#fff}
+.acct .dot{width:10px;height:10px;border-radius:50%;background:#c7ced9}
+.acct.on .dot{background:#2e9e5b}
+.acct .k{color:#fff;border-radius:999px;padding:1px 7px;font-size:10.5px;font-weight:800}
+.acct .k.perso{background:var(--perso)} .acct .k.edm{background:var(--edm)}
+.acct .em{color:var(--muted);font-weight:600;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct.need{border-color:#f0b4b7;background:#fff2f2}
+.setup{max-width:620px;margin:30px auto;background:#fff;border-radius:18px;padding:24px 26px;box-shadow:0 10px 34px rgba(40,70,110,.14);line-height:1.55}
+.setup h2{margin:0 0 10px;font-size:18px}
+.setup ol{padding-left:20px}
+.setup code{background:#eef3f9;border-radius:6px;padding:1px 6px;font-size:12.5px;word-break:break-all}
+.setup input{width:100%;font:inherit;padding:8px 10px;border-radius:10px;border:1px solid #cfd8e3;margin:8px 0 12px}
+.bm{display:inline-block;padding:5px 12px;border-radius:999px;background:var(--accent);color:#fff!important;font-weight:800;text-decoration:none;cursor:grab}
+.menu .help{padding:4px 10px 10px;font-size:12.5px;line-height:1.5;color:var(--text)}
+.menu .help p{margin:0 0 8px}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>Drive · cadrans</h1>
+  <span id="accts" class="grp"></span>
+  <span class="grp">Cadrans <span class="seg" id="segCount"></span></span>
+  <span class="grp">Disposition <span class="seg" id="segLayout"></span></span>
+  <label class="chk"><input type="checkbox" id="chkConfirm"> Confirmer les déplacements</label>
+  <span class="grow"></span>
+  <span class="busy" id="busy"></span>
+  <button class="pill-btn" id="btnRefreshAll" title="Relire tous les dossiers affichés depuis Google Drive">Actualiser</button>
+  <button class="pill-btn" id="btnUndo" disabled title="Annuler la dernière opération">Annuler</button>
+  <button class="pill-btn" id="btnHelp" title="Aide et lancement depuis Drive">?</button>
+</header>
+<div id="banner"></div>
+<main id="main"></main>
+<div id="toasts"></div>
+<div id="ghost"></div>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+(function(){
+"use strict";
+/* ===== Configuration ===== */
+const CLIENT_ID_BUILTIN = "476716885235-rj6c7r2te6v6md334nr8v1o4f9h5875e.apps.googleusercontent.com";          // facultatif : collez ici l'ID client OAuth pour éviter l'écran de configuration
+const SCOPE = "https://www.googleapis.com/auth/drive";
+const API = "https://www.googleapis.com/drive/v3/";
+const ACCTS = {
+  perso:{key:"perso", label:"Perso", hint:"manuel.zacklad@gmail.com"},
+  edm:{key:"edm", label:"EDM", hint:"contact@ecole-edm.fr"}
+};
+const ACCT_KEYS = ["perso","edm"];
+const EDM_EMAIL = "contact@ecole-edm.fr";
+const VIRT = {root:"Mon Drive", shared:"Partagés avec moi", starred:"Favoris"};
+const isVirt = id => id === "shared" || id === "starred";
+const FOLDER = "application/vnd.google-apps.folder";
+const isFolder = it => it.mimeType === FOLDER;
+const STORE = "drive-cadrans-web.v1", TOK = "drive-cadrans-web.tok", CFG = "drive-cadrans-web.cfg";
+const PAL = {
+  amber:["#EBB654","#C8933F"], yellow:["#FBE06B","#E0BC3E"], pink:["#F2A3D8","#C47BAF"], violet:["#8D9FE7","#6677C0"],
+  green:["#9DE96B","#6FAF45"], teal:["#80E3DF","#56AFAA"], blue:["#83B9F2","#5590CC"], coral:["#F58C8F","#CC6164"], slate:["#8E9CB1","#677388"]
+};
+const doFetch = (...a) => (window.__MOCK_FETCH || fetch)(...a);
+const gis = () => window.__MOCK_GOOGLE || window.google;
+const APP_URL = location.origin + location.pathname;
+
+let CLIENT_ID = CLIENT_ID_BUILTIN;
+try { const c = JSON.parse(localStorage.getItem(CFG) || "{}"); if (!CLIENT_ID && c.clientId) CLIENT_ID = c.clientId; } catch(e) {}
+
+for (const k of ACCT_KEYS) Object.assign(ACCTS[k], {email:"", token:"", exp:0, rootId:"", drives:[], need:false, tc:null});
+try {
+  const t = JSON.parse(sessionStorage.getItem(TOK) || "{}");
+  for (const k of ACCT_KEYS) if (t[k] && t[k].exp > Date.now()) Object.assign(ACCTS[k], {token:t[k].token, exp:t[k].exp, email:t[k].email || "", rootId:t[k].rootId || "", drives:t[k].drives || []});
+} catch(e) {}
+function saveTok(){
+  try { const o = {}; for (const k of ACCT_KEYS) { const a = ACCTS[k]; if (a.token) o[k] = {token:a.token, exp:a.exp, email:a.email, rootId:a.rootId, drives:a.drives}; } sessionStorage.setItem(TOK, JSON.stringify(o)); } catch(e) {}
+}
+const connected = k => !!(ACCTS[k].token && ACCTS[k].exp > Date.now());
+
+const cache = new Map(), inflight = new Map();
+const paneErr = [null,null,null,null];
+const srch = [0,1,2,3].map(() => ({open:false, q:"", content:false, results:null, loading:false, err:null, seq:0, trunc:false}));
+const nameCache = new Map();
+const sel = [0,1,2,3].map(() => new Map());
+const anchor = [null,null,null,null];
+const paneEls = [0,1,2,3].map(() => { const d = document.createElement("div"); d.className = "pane"; return d; });
+const lastKey = ["","","",""];
+let undoBatch = null, drag = null, hl = null;
+let pendingFolder = new URLSearchParams(location.search).get("folder");
+
+const ICON = {
+  list:'<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 4h9M5 8h9M5 12h9"/><circle cx="2" cy="4" r=".7" fill="currentColor"/><circle cx="2" cy="8" r=".7" fill="currentColor"/><circle cx="2" cy="12" r=".7" fill="currentColor"/></svg>',
+  grid:'<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" rx="1.3"/><rect x="9" y="2" width="5" height="5" rx="1.3"/><rect x="2" y="9" width="5" height="5" rx="1.3"/><rect x="9" y="9" width="5" height="5" rx="1.3"/></svg>',
+  cols:'<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M6 2.5v11M10.5 2.5v11"/></svg>',
+  up:'<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg>',
+  search:'<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.6"/><path d="M10.4 10.4L14 14"/></svg>',
+  refresh:'<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9"/><path d="M13.5 2.5v3h-3"/></svg>'
+};
+
+/* ===== État ===== */
+function rootEntry(acct, id, title){ return {acct, id, title:title || VIRT[id] || id, owner:""}; }
+function defaultPane(acct){ return {path:[rootEntry(acct || "perso", "root")], mode:"icons", sort:"name", dir:"asc", filter:"", preview:null}; }
+function loadState(){
+  let s = null;
+  try { s = JSON.parse(localStorage.getItem(STORE)); } catch(e) {}
+  const st = {count:2, layout:"cols", confirm:false, panes:[], colors:{}, pins:[], order:{}};
+  if (s && typeof s === "object") {
+    if ([1,2,3,4].includes(s.count)) st.count = s.count;
+    if (["cols","rows","grid"].includes(s.layout)) st.layout = s.layout;
+    st.confirm = !!s.confirm;
+    if (s.colors && typeof s.colors === "object") for (const k in s.colors) if (PAL[s.colors[k]]) st.colors[k] = s.colors[k];
+    if (s.order && typeof s.order === "object") for (const k in s.order) if (Array.isArray(s.order[k])) st.order[k] = s.order[k].map(String);
+    if (Array.isArray(s.pins)) st.pins = s.pins.filter(p => p && p.id && ACCTS[p.acct]).map(p => ({acct:p.acct, id:String(p.id), title:String(p.title || ""), owner:String(p.owner || "")}));
+    if (Array.isArray(s.panes)) st.panes = s.panes.slice(0,4).map(p => {
+      const d = defaultPane();
+      if (p && Array.isArray(p.path) && p.path.length && p.path[0] && ACCTS[p.path[0].acct]) {
+        const acct = p.path[0].acct;
+        d.path = p.path.filter(c => c && c.id).map(c => ({acct, id:String(c.id), title:String(c.title || ""), owner:String(c.owner || "")}));
+      }
+      if (p && ["list","icons","columns"].includes(p.mode)) d.mode = p.mode;
+      if (p && ["name","modified","custom"].includes(p.sort)) d.sort = p.sort;
+      if (p && p.dir === "desc") d.dir = "desc";
+      if (p && p.pvWide) d.pvWide = true;
+      if (p && p.colW && typeof p.colW === "object") { d.colW = {}; for (const key in p.colW) { const v = +p.colW[key]; if (v >= 120 && v <= 700) d.colW[key] = v; } }
+      return d;
+    });
+  }
+  const defaults = ["perso","edm","perso","edm"];
+  while (st.panes.length < 4) st.panes.push(defaultPane(defaults[st.panes.length]));
+  return st;
+}
+const S = loadState();
+function save(){
+  try { localStorage.setItem(STORE, JSON.stringify({count:S.count, layout:S.layout, confirm:S.confirm, colors:S.colors, pins:S.pins, order:S.order,
+    panes:S.panes.map(p => ({path:p.path, mode:p.mode, sort:p.sort, dir:p.dir, pvWide:!!p.pvWide, colW:p.colW || {}}))})); } catch(e) {}
+}
+
+/* ===== Utilitaires ===== */
+const $ = s => document.querySelector(s);
+function h(tag, attrs, ...kids){
+  const e = document.createElement(tag);
+  if (attrs) for (const k in attrs) {
+    const v = attrs[k];
+    if (v == null || v === false) continue;
+    if (k === "class") e.className = v;
+    else if (k === "html") e.innerHTML = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of kids.flat()) { if (c == null || c === false) continue; e.append(c.nodeType ? c : document.createTextNode(String(c))); }
+  return e;
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const clean = t => (t || "").trim() || "(sans titre)";
+const esc = t => String(t).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const coll = new Intl.Collator("fr", {numeric:true, sensitivity:"base"});
+const ck = (acct, id) => acct + ":" + id;
+const qid = id => id.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+function keyOf(acct, pid){
+  if (!pid) return pid;
+  const a = ACCTS[acct];
+  if (pid === a.rootId) return "root";
+  if (a.drives.some(d => d.id === pid)) return "drive:" + pid;
+  return pid;
+}
+function destOf(t){
+  if (t.id === "root") return ACCTS[t.acct].rootId || "root";
+  if (t.id.startsWith("drive:")) return t.id.slice(6);
+  return t.id;
+}
+const acctName = k => ACCTS[k].label + (ACCTS[k].email ? " (" + ACCTS[k].email + ")" : "");
+function fmtDate(iso, long){
+  if (!iso) return "";
+  const d = new Date(iso); if (isNaN(d)) return "";
+  const o = {day:"2-digit", month:"short", year:"numeric"};
+  if (long) { o.hour = "2-digit"; o.minute = "2-digit"; }
+  return d.toLocaleString("fr-FR", o);
+}
+function fmtSize(it){
+  const n = Number(it.fileSize); if (!it.fileSize || isNaN(n)) return "";
+  if (n < 1024) return n + " o";
+  const u = ["Ko","Mo","Go","To"]; let v = n / 1024, i = 0;
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+  return v.toLocaleString("fr-FR", {maximumFractionDigits: v < 10 ? 1 : 0}) + " " + u[i];
+}
+function kind(it){
+  const m = it.mimeType || "", t = (it.title || "").toLowerCase();
+  if (m === FOLDER) return ["folder","Dossier","",""];
+  if (m === "application/vnd.google-apps.shortcut") return ["link","Raccourci","#7d8aa0","↗"];
+  if (m.includes("google-apps.document") || m.includes("wordprocessing") || m === "application/msword") return ["doc","Document","#3d82ea","DOC"];
+  if (m.includes("google-apps.spreadsheet") || m.includes("spreadsheet") || m.includes("ms-excel") || m === "text/csv") return ["sheet","Tableur","#3ea05a","XLS"];
+  if (m.includes("google-apps.presentation") || m.includes("presentation") || m.includes("powerpoint")) return ["slides","Présentation","#e9a21b","PPT"];
+  if (m === "application/pdf") return ["pdf","PDF","#e6683a","PDF"];
+  if (m.includes("google-apps.form")) return ["form","Formulaire","#7a52c4","FORM"];
+  if (m.startsWith("image/") || m.includes("google-apps.drawing")) return ["img","Image","#9b62dc","IMG"];
+  if (m.startsWith("video/")) return ["vid","Vidéo","#d8508a","VID"];
+  if (m.startsWith("audio/")) return ["aud","Audio","#2aa7bc","SON"];
+  if (m.includes("zip") || m.includes("compressed") || /\.(zip|rar|7z|gz)$/.test(t)) return ["zip","Archive","#8a7a5f","ZIP"];
+  if (m.startsWith("text/") || m.includes("json") || m.includes("markdown")) return ["txt","Texte","#7d8aa0","TXT"];
+  return ["file","Fichier","#9aa5b6","•"];
+}
+function folderSvg(id, shared){
+  const [b, k] = PAL[S.colors[id]] || PAL.amber;
+  const badge = shared ? '<circle cx="21" cy="47" r="13" fill="#fff" fill-opacity=".93"/><circle cx="17.5" cy="43.5" r="3.3" fill="'+k+'"/><path d="M11.5 53.5c.6-3.6 3-5.6 6-5.6s5.4 2 6 5.6z" fill="'+k+'"/><circle cx="25.5" cy="44.5" r="2.8" fill="'+k+'" fill-opacity=".75"/><path d="M23 48.3c.8-.3 1.6-.4 2.5-.4 2.6 0 4.6 1.8 5.1 5.6h-5.4c-.3-2.2-1-3.9-2.2-5.2z" fill="'+k+'" fill-opacity=".75"/>' : '';
+  return '<svg viewBox="0 0 84 68"><path d="M7 1h19c2 0 3.2.7 4.5 2L37 9h40a7 7 0 0 1 7 7v45a7 7 0 0 1-7 7H7a7 7 0 0 1-7-7V8a7 7 0 0 1 7-7z" fill="'+k+'"/><rect x="0" y="15" width="84" height="53" rx="7" fill="'+b+'"/>'+badge+'</svg>';
+}
+function isShared(it){ const me = ACCTS[it.acct] && ACCTS[it.acct].email; return !!(it.owner && me && it.owner !== me); }
+function iconSvg(it){
+  if (isFolder(it)) return folderSvg(it.id, isShared(it));
+  const [,,c,lbl] = kind(it);
+  const fs = lbl.length > 3 ? 14 : lbl.length > 1 ? 17 : 24;
+  return '<svg viewBox="0 0 68 68"><circle cx="34" cy="34" r="34" fill="'+c+'"/><text x="34" y="'+(34 + fs * .36)+'" font-size="'+fs+'" text-anchor="middle" fill="#fff" font-weight="800" font-family="system-ui,sans-serif">'+esc(lbl)+'</text></svg>';
+}
+const iconEl = it => h("span", {class:"ico", html:iconSvg(it)});
+function ownerTag(it){
+  const me = ACCTS[it.acct].email;
+  if (!it.owner || it.owner === me) return null;
+  if (it.owner === EDM_EMAIL) return h("span", {class:"tag edm", title:"Propriétaire : " + it.owner}, "EDM");
+  if (it.owner === ACCTS.perso.email) return h("span", {class:"tag", style:"background:var(--perso);color:#fff", title:"Propriétaire : " + it.owner}, "PERSO");
+  return h("span", {class:"tag ext", title:"Propriétaire : " + it.owner}, "Partagé");
+}
+function countText(acct, id){ const e = cache.get(ck(acct, id)); return e ? e.items.length + (e.truncated ? "+" : "") : ""; }
+const countEl = it => isFolder(it) ? h("span", {class:"count", "data-count":ck(it.acct, it.id)}, countText(it.acct, it.id)) : null;
+function errMsg(e){
+  if (!e) return "Erreur inattendue.";
+  if (e.code === "needs_auth") return "Le compte " + acctName(e.acct) + " doit être (re)connecté.";
+  if (e.status === 403) return "Accès refusé par Drive" + (e.message ? " : " + e.message : ".");
+  if (e.status === 404) return "Élément introuvable ou non accessible depuis ce compte.";
+  if (e.status === 429 || e.status >= 500) return "Google Drive ne répond pas pour le moment, réessayez.";
+  return e.message || "Erreur inattendue.";
+}
+
+/* ===== Connexion Google ===== */
+function needAuth(acct){ const a = ACCTS[acct]; a.token = ""; a.need = true; saveTok(); renderAccts(); }
+function connect(acct, switchAccount){
+  return new Promise((res, rej) => {
+    const g = gis();
+    if (!g || !g.accounts || !g.accounts.oauth2) { toast("Le service de connexion Google n'est pas encore chargé, réessayez dans un instant.", {err:true}); return rej(new Error("gis")); }
+    const a = ACCTS[acct];
+    if (!a.tc) a.tc = g.accounts.oauth2.initTokenClient({client_id:CLIENT_ID, scope:SCOPE, callback:() => {}});
+    a.tc.callback = async r => {
+      if (r.error) { toast("Connexion " + a.label + " refusée : " + (r.error_description || r.error), {err:true}); return rej(new Error(r.error)); }
+      a.token = r.access_token; a.exp = Date.now() + (Number(r.expires_in || 3600) - 90) * 1000; a.need = false;
+      try {
+        const [about, root, drives] = await Promise.all([
+          api(acct, "GET", "about", {query:{fields:"user(emailAddress)"}}),
+          api(acct, "GET", "files/root", {query:{fields:"id"}}),
+          api(acct, "GET", "drives", {query:{pageSize:100, fields:"drives(id,name)"}}).catch(() => ({drives:[]}))
+        ]);
+        const changed = a.email && a.email !== about.user.emailAddress;
+        a.email = about.user.emailAddress; a.rootId = root.id; a.drives = drives.drives || [];
+        if (changed) [...cache.keys()].forEach(k => { if (k.startsWith(acct + ":")) cache.delete(k); });
+        if (a.email !== a.hint) toast("Le cadran « " + a.label + " » est connecté à " + a.email + " (attendu : " + a.hint + ").", {err:true, ms:9000});
+      } catch (e) { toast(errMsg(e), {err:true}); }
+      saveTok(); renderAccts();
+      for (let i = 0; i < S.count; i++) if (S.panes[i].path[0].acct === acct) { renderPane(i); loadPane(i); }
+      resolvePending();
+      res();
+    };
+    a.tc.error_callback = e => { if (e && e.type !== "popup_closed") toast("Connexion impossible : " + (e.message || e.type), {err:true}); rej(new Error(e && e.type)); };
+    a.tc.requestAccessToken({prompt:(switchAccount || !a.email) ? "select_account" : "", login_hint:switchAccount ? "" : (a.email || a.hint)});
+  });
+}
+async function api(acct, method, path, opt){
+  opt = opt || {};
+  const a = ACCTS[acct];
+  if (!a.token || a.exp < Date.now()) { if (a.token) needAuth(acct); const e = new Error("auth"); e.code = "needs_auth"; e.acct = acct; throw e; }
+  const url = new URL(API + path);
+  if (opt.query) for (const k in opt.query) if (opt.query[k] !== undefined && opt.query[k] !== "") url.searchParams.set(k, opt.query[k]);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const r = await doFetch(url.toString(), {method, headers:Object.assign({Authorization:"Bearer " + a.token}, opt.body ? {"Content-Type":"application/json"} : {}), body:opt.body ? JSON.stringify(opt.body) : undefined});
+    if (r.status === 401) { needAuth(acct); const e = new Error("auth"); e.code = "needs_auth"; e.acct = acct; throw e; }
+    if (r.status === 204) return {};
+    const j = await r.json().catch(() => ({}));
+    if (r.ok) return j;
+    const reason = j.error && j.error.errors && j.error.errors[0] && j.error.errors[0].reason;
+    const retryable = r.status === 429 || r.status >= 500 || reason === "userRateLimitExceeded" || reason === "rateLimitExceeded";
+    if (retryable && attempt === 0 && method === "GET") { await sleep(800 + Math.random() * 800); continue; }
+    const e = new Error((j.error && j.error.message) || ("HTTP " + r.status)); e.status = r.status; e.reason = reason; throw e;
+  }
+}
+
+/* ===== Lecture des dossiers ===== */
+const FIELDS = "nextPageToken,files(id,name,mimeType,parents,owners(emailAddress),modifiedTime,createdTime,size,webViewLink,driveId)";
+function listQuery(id){
+  const base = {fields:FIELDS, pageSize:1000, supportsAllDrives:true, includeItemsFromAllDrives:true};
+  if (id === "root") return Object.assign(base, {q:"'root' in parents and trashed = false", corpora:"user"});
+  if (id === "shared") return Object.assign(base, {q:"sharedWithMe = true and trashed = false", corpora:"user"});
+  if (id === "starred") return Object.assign(base, {q:"starred = true and trashed = false", corpora:"user"});
+  if (id.startsWith("drive:")) { const d = id.slice(6); return Object.assign(base, {q:"'" + qid(d) + "' in parents and trashed = false", corpora:"drive", driveId:d}); }
+  return Object.assign(base, {q:"'" + qid(id) + "' in parents and trashed = false", corpora:"allDrives"});
+}
+function mapFile(f, acct){
+  return {acct, id:f.id, title:f.name, mimeType:f.mimeType, parentId:(f.parents || [])[0] || "", owner:(f.owners && f.owners[0] && f.owners[0].emailAddress) || (f.driveId ? "disque partagé" : ""),
+    driveId:f.driveId || "", modifiedTime:f.modifiedTime, createdTime:f.createdTime, fileSize:f.size, viewUrl:f.webViewLink};
+}
+function fetchFolder(acct, id, opt){
+  opt = opt || {};
+  const k = ck(acct, id), max = opt.max || (isVirt(id) ? 2 : 10);
+  const have = cache.get(k);
+  if (!opt.force && have && (!have.truncated || have.max >= max)) return Promise.resolve(have);
+  if (inflight.has(k)) return inflight.get(k).then(() => fetchFolder(acct, id, opt));
+  const p = (async () => {
+    const items = [], seen = new Set(); let token = null;
+    for (let i = 0; i < max; i++) {
+      const q = listQuery(id); if (token) q.pageToken = token;
+      const res = await api(acct, "GET", "files", {query:q});
+      const files = Array.isArray(res.files) ? res.files : [];
+      for (const f of files) if (!seen.has(f.id)) { seen.add(f.id); items.push(mapFile(f, acct)); }
+      token = res.nextPageToken;
+      if (!token || !files.length) { token = null; break; }
+    }
+    const entry = {items, truncated:!!token, max};
+    cache.set(k, entry);
+    return entry;
+  })();
+  inflight.set(k, p);
+  p.finally(() => inflight.delete(k)).catch(() => {});
+  return p;
+}
+const cq = [], cqSet = new Set(); let cqRun = 0;
+function wantCounts(acct, ids){
+  for (const id of ids.slice().reverse()) { const k = ck(acct, id); if (!cache.has(k) && !cqSet.has(k)) { cqSet.add(k); cq.unshift([acct, id]); } }
+  pump();
+}
+function pump(){
+  while (cqRun < 3 && cq.length) {
+    const [acct, id] = cq.shift(); const k = ck(acct, id); cqRun++;
+    if (!connected(acct)) { cqRun--; cqSet.delete(k); continue; }
+    fetchFolder(acct, id, {max:1}).then(() => updateCounts(k)).catch(() => {}).finally(() => { cqRun--; cqSet.delete(k); pump(); });
+  }
+}
+function updateCounts(k){ const [acct, ...rest] = k.split(":"); const id = rest.join(":"); document.querySelectorAll('[data-count="' + CSS.escape(k) + '"]').forEach(e => { e.textContent = countText(acct, id); }); }
+function idsShown(i){ const p = S.panes[i]; return p.mode === "columns" ? p.path.map(c => c.id) : [p.path[p.path.length-1].id]; }
+async function loadPane(i, force){
+  const acct = S.panes[i].path[0].acct;
+  paneErr[i] = null;
+  if (!connected(acct)) { renderBody(i); return; }
+  if (force) idsShown(i).forEach(id => cache.delete(ck(acct, id)));
+  renderBody(i);
+  try { await Promise.all(idsShown(i).map(id => fetchFolder(acct, id))); }
+  catch (e) { paneErr[i] = e; }
+  if (i < S.count) renderBody(i);
+}
+
+/* ===== Ouverture depuis Drive (?folder=ID) ===== */
+async function chainOf(acct, f){
+  const fields = "id,name,mimeType,parents,owners(emailAddress),driveId";
+  const chain = []; let cur = f, root = null;
+  for (let n = 0; n < 15; n++) {
+    const pid = (cur.parents || [])[0];
+    if (!pid) break;
+    if (pid === ACCTS[acct].rootId) { root = rootEntry(acct, "root"); break; }
+    const d = ACCTS[acct].drives.find(x => x.id === pid);
+    if (d) { root = rootEntry(acct, "drive:" + d.id, d.name); break; }
+    try { cur = await api(acct, "GET", "files/" + encodeURIComponent(pid), {query:{fields, supportsAllDrives:true}}); }
+    catch (e) { break; }
+    nameCache.set(ck(acct, cur.id), cur.name);
+    chain.unshift({acct, id:cur.id, title:cur.name, owner:(cur.owners && cur.owners[0] && cur.owners[0].emailAddress) || ""});
+  }
+  if (!root) root = rootEntry(acct, "shared");
+  return {root, chain};
+}
+let resolving = false;
+async function resolvePending(){
+  if (!pendingFolder || resolving) return;
+  const accts = ACCT_KEYS.filter(connected);
+  if (!accts.length) return;
+  resolving = true;
+  const id = pendingFolder;
+  for (const acct of accts) {
+    try {
+      const fields = "id,name,mimeType,parents,owners(emailAddress),driveId";
+      let f = await api(acct, "GET", "files/" + encodeURIComponent(id), {query:{fields, supportsAllDrives:true}});
+      const target = mapFile(f, acct);
+      const {root, chain} = await chainOf(acct, f);
+      const p = S.panes[0];
+      if (isFolder(target)) { p.path = [root, ...chain, {acct, id:target.id, title:target.title, owner:target.owner}]; p.preview = null; }
+      else { p.path = [root, ...chain]; p.preview = target; p.mode = "columns"; }
+      pendingFolder = null;
+      document.querySelectorAll(".toast.pending").forEach(t => t.remove());
+      try { history.replaceState(null, "", APP_URL); } catch(e) {}
+      renderPane(0); loadPane(0); save();
+      resolving = false;
+      return;
+    } catch (e) { /* essai sur l'autre compte */ }
+  }
+  resolving = false;
+  if (accts.length === ACCT_KEYS.length) { toast("Le dossier demandé n'est accessible par aucun des deux comptes.", {err:true}); pendingFolder = null; }
+}
+
+/* ===== Glisser-déposer ===== */
+function setHL(el, cls){
+  if (hl && hl.el !== el) hl.el.classList.remove(hl.cls);
+  if (el) { el.classList.add(cls); hl = {el, cls}; } else hl = null;
+}
+function canDrop(target, copy){
+  if (!drag || !target || isVirt(target.id) || !connected(target.acct)) return false;
+  const tid = target.id;
+  let any = false;
+  for (const it of drag.items) {
+    if (it.acct !== target.acct) { any = true; continue; }
+    if (it.id === tid) return false;
+    if ((target.path || []).some(c => c.id === it.id)) return false;
+    for (const p of S.panes) {
+      if (p.path[0].acct !== target.acct) continue;
+      const j = p.path.findIndex(c => c.id === tid);
+      if (j > 0 && p.path.slice(0, j).some(c => c.id === it.id)) return false;
+    }
+    if (copy || keyOf(it.acct, it.parentId) !== tid) any = true;
+  }
+  return any;
+}
+function makeDropTarget(el, getTarget, cls){
+  el.addEventListener("dragover", e => {
+    if (!drag) return;
+    e.stopPropagation();
+    const t = getTarget();
+    if (canDrop(t, e.altKey)) { e.preventDefault(); e.dataTransfer.dropEffect = (e.altKey || drag.items[0].acct !== t.acct) ? "copy" : "move"; setHL(el, cls); }
+    else setHL(null);
+  });
+  el.addEventListener("drop", e => {
+    if (!drag) return;
+    e.preventDefault(); e.stopPropagation();
+    const t = getTarget(), items = drag.items, ev = {x:e.clientX, y:e.clientY, alt:e.altKey};
+    endDrag();
+    onDrop(items, t, ev);
+  });
+}
+function endDrag(){ setHL(null); drag = null; }
+document.addEventListener("dragover", () => { if (drag) setHL(null); });
+document.addEventListener("dragend", endDrag);
+
+async function onDrop(items, target, ev){
+  const cross = items[0].acct !== target.acct;
+  let op;
+  if (cross) op = await dropMenu(items, target, ev.x, ev.y);
+  else op = ev.alt ? "copy" : "move";
+  if (op === "move" && !cross) doMove(items, target);
+  else if (op === "move") doTransfer(items, target, true);
+  else if (op === "copy") doTransfer(items, target, false);
+}
+
+function attachItem(el, i, it, ctx){
+  el.draggable = true;
+  if (sel[i].has(it.id)) el.classList.add("sel");
+  el.addEventListener("click", e => {
+    e.stopPropagation();
+    const s = sel[i];
+    if (e.metaKey || e.ctrlKey) { s.has(it.id) ? s.delete(it.id) : s.set(it.id, it); anchor[i] = it.id; renderBody(i); return; }
+    if (e.shiftKey && anchor[i]) {
+      const L = ctx.list, a = L.findIndex(x => x.id === anchor[i]), b = L.findIndex(x => x.id === it.id);
+      if (a >= 0 && b >= 0) { s.clear(); L.slice(Math.min(a,b), Math.max(a,b) + 1).forEach(x => s.set(x.id, x)); renderBody(i); return; }
+    }
+    s.clear(); s.set(it.id, it); anchor[i] = it.id;
+    if (S.panes[i].mode === "columns" && !ctx.search) openInColumns(i, it, ctx.level); else renderBody(i);
+  });
+  el.addEventListener("dblclick", () => {
+    if (ctx.reveal) { ctx.reveal(it); return; }
+    if (S.panes[i].mode === "columns") return;
+    if (isFolder(it)) navInto(i, it);
+    else if (it.viewUrl) window.open(it.viewUrl, "_blank", "noopener");
+  });
+  el.addEventListener("contextmenu", e => { e.preventDefault(); e.stopPropagation(); itemMenu(it, e.clientX, e.clientY); });
+  el.addEventListener("dragstart", e => {
+    closeMenus();
+    const s = sel[i];
+    if (!s.has(it.id)) {
+      s.clear(); s.set(it.id, it); anchor[i] = it.id;
+      paneEls[i].querySelectorAll(".sel").forEach(x => x.classList.remove("sel"));
+      el.classList.add("sel");
+    }
+    drag = {pane:i, items:[...s.values()]};
+    e.dataTransfer.effectAllowed = "copyMove";
+    try { e.dataTransfer.setData("text/plain", drag.items.map(x => clean(x.title)).join("\n")); } catch(_) {}
+    const g = $("#ghost");
+    g.textContent = drag.items.length > 1 ? drag.items.length + " éléments" : clean(it.title);
+    try { e.dataTransfer.setDragImage(g, 14, 14); } catch(_) {}
+  });
+  el.addEventListener("dragend", endDrag);
+  if (S.panes[i].mode === "icons" && !ctx.search) attachReorder(el, i, it, ctx);
+  if (isFolder(it)) makeDropTarget(el, () => ({acct:it.acct, id:it.id, title:it.title, owner:it.owner, path:[...ctx.containerPath, {acct:it.acct, id:it.id, title:it.title, owner:it.owner}]}), "drop-target");
+}
+
+/* Ordre libre en vue icônes : déposer sur le bord gauche ou droit d'une tuile */
+function reorderZone(el, it, e){
+  const r = el.getBoundingClientRect(), x = (e.clientX - r.left) / r.width;
+  if (isFolder(it)) return x < .28 ? "before" : x > .72 ? "after" : null;
+  return x < .5 ? "before" : "after";
+}
+function canReorder(i, it){
+  if (!drag || drag.pane !== i) return false;
+  const p = S.panes[i], cur = p.path[p.path.length - 1].id;
+  return drag.items.every(x => x.acct === it.acct && keyOf(x.acct, x.parentId) === cur && x.id !== it.id);
+}
+function attachReorder(el, i, it, ctx){
+  el.addEventListener("dragover", e => {
+    if (!canReorder(i, it) || e.altKey) return;
+    const z = reorderZone(el, it, e);
+    if (!z) return;
+    e.preventDefault(); e.stopImmediatePropagation(); e.dataTransfer.dropEffect = "move";
+    setHL(el, z === "before" ? "ins-before" : "ins-after");
+  });
+  el.addEventListener("drop", e => {
+    if (!canReorder(i, it) || e.altKey) return;
+    const z = reorderZone(el, it, e);
+    if (!z) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    const p = S.panes[i], cur = p.path[p.path.length - 1], acct = p.path[0].acct;
+    const moving = new Set(drag.items.map(x => x.id));
+    const full = itemsOf(acct, cur.id, p, false).map(x => x.id).filter(x => !moving.has(x));
+    const shown = ctx.list.map(x => x.id).filter(x => moving.has(x));
+    let at = full.indexOf(it.id); if (z === "after") at++;
+    full.splice(at, 0, ...shown);
+    S.order[ck(acct, cur.id)] = full;
+    endDrag();
+    p.sort = "custom"; p.dir = "asc"; save(); renderPane(i);
+  });
+}
+
+/* ===== Menus ===== */
+function closeMenus(){ document.querySelectorAll(".menu").forEach(m => { if (m._close) m._close(null); else m.remove(); }); }
+function placeMenu(m, x, y){
+  document.body.append(m);
+  const r = m.getBoundingClientRect();
+  m.style.left = Math.max(8, Math.min(x, innerWidth - r.width - 8)) + "px";
+  m.style.top = Math.max(8, Math.min(y, innerHeight - r.height - 8)) + "px";
+}
+function popMenu(x, y, build){
+  closeMenus();
+  return new Promise(res => {
+    const m = h("div", {class:"menu", role:"menu"});
+    const done = v => { m.remove(); document.removeEventListener("mousedown", outside, true); document.removeEventListener("keydown", key, true); res(v); };
+    m._close = done;
+    const outside = e => { if (!m.contains(e.target)) done(null); };
+    const key = e => { if (e.key === "Escape") done(null); };
+    build(m, done);
+    placeMenu(m, x, y);
+    setTimeout(() => { document.addEventListener("mousedown", outside, true); document.addEventListener("keydown", key, true); }, 0);
+    const f = m.querySelector("button.mi"); if (f) f.focus();
+  });
+}
+function dropMenu(items, target, x, y){
+  const src = items[0].acct, dst = target.acct;
+  return popMenu(x, y, (m, done) => m.append(
+    h("div", {class:"mt"}, labelOf(items) + " → « " + clean(target.title) + " »"),
+    h("div", {class:"ms"}, "Du compte " + acctName(src) + " vers " + acctName(dst)),
+    h("button", {class:"mi", onclick:() => done("copy")}, "Copier ici", h("small", {}, "La copie appartient au compte " + ACCTS[dst].label + " ; l'original reste en place.")),
+    h("button", {class:"mi", onclick:() => done("move")}, "Déplacer ici", h("small", {}, "Copie au compte " + ACCTS[dst].label + ", puis l'original part à la corbeille du compte " + ACCTS[src].label + ".")),
+    h("hr"),
+    h("button", {class:"mi", onclick:() => done(null)}, "Annuler")));
+}
+function itemMenu(it, x, y){
+  popMenu(x, y, (m, done) => {
+    m.append(h("div", {class:"mt"}, clean(it.title)), h("div", {class:"ms"}, kind(it)[1] + (it.owner ? " · " + it.owner : "")));
+    if (it.viewUrl) m.append(h("a", {class:"mi", href:it.viewUrl, target:"_blank", rel:"noopener", onclick:() => done()}, "Ouvrir dans Drive"));
+    m.append(h("button", {class:"mi", onclick:() => { done(); doRename(it); }}, "Renommer…"));
+    m.append(h("button", {class:"mi", style:"color:var(--danger)", onclick:() => { done(); const pi = paneOfItem(it); const s = pi >= 0 ? sel[pi] : null; doTrash(s && s.has(it.id) && s.size > 1 ? [...s.values()] : [it]); }}, "Mettre à la corbeille"));
+    if (isFolder(it)) {
+      const pinned = S.pins.some(p => p.id === it.id && p.acct === it.acct);
+      m.append(h("button", {class:"mi", onclick:() => {
+        if (pinned) S.pins = S.pins.filter(p => !(p.id === it.id && p.acct === it.acct)); else S.pins.push({acct:it.acct, id:it.id, title:it.title, owner:it.owner});
+        save(); done(); for (let i = 0; i < S.count; i++) renderPane(i);
+        toast(pinned ? "Épingle retirée." : "« " + clean(it.title) + " » est maintenant proposé comme racine de cadran.");
+      }}, pinned ? "Retirer des racines épinglées" : "Épingler comme racine de cadran"));
+    }
+    if (!isFolder(it)) return;
+    m.append(h("hr"), h("div", {class:"ms"}, "Couleur dans ce panneau"));
+    const pi = paneOfItem(it), group = ((pi >= 0 && sel[pi].has(it.id) && sel[pi].size > 1) ? [...sel[pi].values()] : [it]).filter(isFolder);
+    const sw = h("div", {class:"sw"});
+    const apply = k => { group.forEach(g => { if (!k) delete S.colors[g.id]; else S.colors[g.id] = k; }); save(); done(); for (let i = 0; i < S.count; i++) renderBody(i); };
+    sw.append(h("button", {title:"Couleur d'origine", class:S.colors[it.id] ? "" : "on", style:"background:#fff;color:#8a94a6;font-size:12px;line-height:18px", onclick:() => apply(null)}, "×"));
+    Object.keys(PAL).forEach(k => sw.append(h("button", {class:S.colors[it.id] === k ? "on" : "", title:k, style:"background:" + PAL[k][0], onclick:() => apply(k)})));
+    m.append(sw);
+  });
+}
+function promptDlg(text, value, okLabel){
+  return new Promise(res => {
+    const inp = h("input", {type:"text", value, style:"width:100%;font:inherit;padding:8px 10px;border-radius:10px;border:1px solid #cfd8e3;margin:0 0 14px"});
+    const close = v => { bg.remove(); res(v); };
+    const bg = h("div", {class:"modal-bg", onclick:e => { if (e.target === bg) close(null); }},
+      h("div", {class:"modal", style:"min-width:380px"}, h("p", {}, text), inp,
+        h("div", {class:"acts"}, h("button", {onclick:() => close(null)}, "Annuler"), h("button", {class:"primary", onclick:() => close(inp.value)}, okLabel))));
+    inp.addEventListener("keydown", e => { if (e.key === "Enter") close(inp.value); if (e.key === "Escape") close(null); });
+    document.body.append(bg);
+    inp.focus();
+    const dot = value.lastIndexOf(".");
+    if (dot > 0 && !isFolderTitle) inp.setSelectionRange(0, dot); else inp.select();
+  });
+}
+let isFolderTitle = false;
+async function doRename(it){
+  isFolderTitle = isFolder(it) || !/\.[A-Za-z0-9]{1,5}$/.test(it.title || "");
+  const v = await promptDlg("Nouveau nom pour « " + clean(it.title) + " » :", it.title || "", "Renommer");
+  if (v == null) return;
+  const name = v.trim();
+  if (!name || name === (it.title || "").trim()) return;
+  setBusy("Renommage…");
+  try {
+    await api(it.acct, "PATCH", "files/" + encodeURIComponent(it.id), {query:{supportsAllDrives:true, fields:"id,name"}, body:{name}});
+    setBusy("");
+    setUndo({ops:[{t:"rename", acct:it.acct, id:it.id, title:name, from:it.title}], restorePaths:[], keys:[]});
+    S.panes.forEach(p => p.path.forEach(c => { if (c.id === it.id && c.acct === it.acct) c.title = name; }));
+    S.pins.forEach(p => { if (p.id === it.id && p.acct === it.acct) p.title = name; });
+    invalidate(it.acct, new Set([keyOf(it.acct, it.parentId)]));
+    toast("Renommé en « " + name + " ».", {undo:true});
+  } catch (e) { setBusy(""); toast("Renommage impossible. " + errMsg(e), {err:true, ms:9000}); }
+  refreshAll();
+}
+function helpMenu(x, y){
+  const code = "javascript:(function(){var m=location.href.match(/folders\\/([\\w-]+)/)||location.href.match(/[?&]id=([\\w-]+)/)||location.href.match(/\\/d\\/([\\w-]+)/);window.open('" + APP_URL + "'+(m?'?folder='+m[1]:''),'drive-cadrans');})();";
+  popMenu(x, y, (m, done) => {
+    m.style.maxWidth = "380px";
+    m.append(h("div", {class:"mt"}, "Lancer depuis Google Drive"),
+      h("div", {class:"help"},
+        h("p", {}, "Glissez ce bouton dans votre barre de favoris :"),
+        h("p", {}, h("a", {class:"bm", href:code, onclick:e => { e.preventDefault(); toast("Glissez ce bouton dans la barre de favoris (ne cliquez pas dessus ici)."); }}, "↗ Cadrans")),
+        h("p", {}, "Dans Drive, ouvrez un dossier puis cliquez sur ce favori : l'application s'ouvre directement sur ce dossier, dans le premier cadran."),
+        h("p", {}, "Raccourcis : Alt + glisser pour copier dans un même compte ; en vue icônes, déposer sur le bord gauche ou droit d'une tuile pour réordonner (ordre libre mémorisé) ; les cadrans se réactualisent seuls chaque minute, bouton Actualiser pour tout relire ; Ctrl ou Cmd + clic et Maj + clic pour sélectionner plusieurs éléments ; clic droit pour renommer, mettre à la corbeille, épingler ou changer la couleur d'un dossier ; F2 pour renommer, Suppr pour mettre à la corbeille ; touche Suppr pour mettre la sélection à la corbeille.")),
+      h("hr"),
+      h("button", {class:"mi", onclick:() => { done(); try { localStorage.removeItem(CFG); } catch(e) {} location.reload(); }}, "Changer l'ID client OAuth"));
+  });
+}
+function confirmDlg(text, okLabel){
+  return new Promise(res => {
+    const close = v => { bg.remove(); res(v); };
+    const bg = h("div", {class:"modal-bg", onclick:e => { if (e.target === bg) close(false); }},
+      h("div", {class:"modal"}, h("p", {}, text),
+        h("div", {class:"acts"}, h("button", {onclick:() => close(false)}, "Annuler"), h("button", {class:"primary", onclick:() => close(true)}, okLabel || "Déplacer"))));
+    document.body.append(bg);
+    bg.querySelector(".primary").focus();
+  });
+}
+
+/* ===== Opérations ===== */
+function setBusy(text){ const b = $("#busy"); b.textContent = text || ""; b.classList.toggle("on", !!text); }
+function invalidate(acct, keys){ keys.forEach(k => k && cache.delete(ck(acct, k))); cache.delete(ck(acct, "shared")); cache.delete(ck(acct, "starred")); }
+function refreshAll(){ for (let i = 0; i < S.count; i++) { renderPane(i); loadPane(i); } save(); }
+function labelOf(items){ return items.length > 1 ? items.length + " éléments" : "« " + clean(items[0].title) + " »"; }
+function setUndo(b){ document.querySelectorAll(".toast.undo").forEach(t => t.remove()); undoBatch = b; $("#btnUndo").disabled = !b; }
+const moveFile = (acct, id, dest, from) => api(acct, "PATCH", "files/" + encodeURIComponent(id), {query:{addParents:dest, removeParents:from || undefined, supportsAllDrives:true, fields:"id"}, body:{}});
+const trashFile = (acct, id, val) => api(acct, "PATCH", "files/" + encodeURIComponent(id), {query:{supportsAllDrives:true, fields:"id"}, body:{trashed:val !== false}});
+
+async function doMove(items, target){
+  const acct = target.acct;
+  items = items.filter(it => it.id !== target.id && keyOf(acct, it.parentId) !== target.id);
+  if (!items.length) return;
+  if (S.confirm && !(await confirmDlg("Déplacer " + labelOf(items) + " vers « " + clean(target.title) + " » ?"))) return;
+  const dest = destOf(target);
+  const keys = new Set([target.id]); items.forEach(it => keys.add(keyOf(acct, it.parentId)));
+  const ops = [], errs = [], movedFolders = new Set();
+  setBusy("Déplacement…");
+  for (const it of items) {
+    try { await moveFile(acct, it.id, dest, it.parentId); ops.push({t:"move", acct, id:it.id, title:it.title, from:it.parentId, to:dest}); if (isFolder(it)) movedFolders.add(it.id); }
+    catch (e) { errs.push([it, e]); }
+  }
+  setBusy("");
+  const restorePaths = [];
+  const tpath = (target.path && target.path.length) ? target.path : [rootEntry(acct, "root")];
+  S.panes.forEach((p, i) => {
+    if (p.path[0].acct !== acct) return;
+    const k = p.path.findIndex(c => movedFolders.has(c.id));
+    if (k > 0) { restorePaths.push([i, p.path.slice()]); p.path = [...tpath, ...p.path.slice(k)]; }
+    if (p.preview && items.some(it => it.id === p.preview.id)) p.preview = null;
+  });
+  invalidate(acct, keys); sel.forEach(s => s.clear());
+  if (ops.length) {
+    setUndo({ops, restorePaths, keys:[[acct, [...keys]]]});
+    toast(labelOf(ops) + " déplacé" + (ops.length > 1 ? "s" : "") + " vers « " + clean(target.title) + " ».", {undo:true});
+  }
+  errs.forEach(([it, e]) => toast("« " + clean(it.title) + " » n'a pas été déplacé. " + errMsg(e), {err:true, ms:9000}));
+  refreshAll();
+}
+
+/* Copie (même compte ou entre comptes) et transfert entre comptes */
+async function copyFileTo(it, dstAcct, parent){
+  const body = {name:it.title, parents:[parent]};
+  const q = {supportsAllDrives:true, fields:"id"};
+  if (it.acct === dstAcct) return (await api(dstAcct, "POST", "files/" + encodeURIComponent(it.id) + "/copy", {query:q, body})).id;
+  try { return (await api(dstAcct, "POST", "files/" + encodeURIComponent(it.id) + "/copy", {query:q, body})).id; }
+  catch (e) { if (e.code === "needs_auth" || (e.status !== 404 && e.status !== 403)) throw e; }
+  // Le compte de destination ne voit pas le fichier : accès en lecture temporaire accordé par le compte source
+  const perm = await api(it.acct, "POST", "files/" + encodeURIComponent(it.id) + "/permissions",
+    {query:{sendNotificationEmail:false, supportsAllDrives:true, fields:"id"}, body:{type:"user", role:"reader", emailAddress:ACCTS[dstAcct].email}});
+  try {
+    try { return (await api(dstAcct, "POST", "files/" + encodeURIComponent(it.id) + "/copy", {query:q, body})).id; }
+    catch (e) { if (e.status !== 404) throw e; await sleep(1500); return (await api(dstAcct, "POST", "files/" + encodeURIComponent(it.id) + "/copy", {query:q, body})).id; }
+  } finally {
+    api(it.acct, "DELETE", "files/" + encodeURIComponent(it.id) + "/permissions/" + perm.id, {query:{supportsAllDrives:true}}).catch(() => {});
+  }
+}
+async function doTransfer(items, target, isMove){
+  const dst = target.acct, dest = destOf(target);
+  if (!connected(dst)) { toast(errMsg({code:"needs_auth", acct:dst}), {err:true}); return; }
+  const ops = [], errs = [], kept = []; let n = 0;
+  const tick = () => { n++; setBusy((isMove ? "Transfert" : "Copie") + " : " + n + " élément" + (n > 1 ? "s" : "") + "…"); };
+  async function copyTree(it, parent){
+    if (isFolder(it)) {
+      const f = await api(dst, "POST", "files", {query:{supportsAllDrives:true, fields:"id"}, body:{name:it.title, mimeType:FOLDER, parents:[parent]}});
+      tick();
+      let kids = [];
+      try { kids = (await fetchFolder(it.acct, it.id, {force:true})).items; } catch (e) { errs.push([it, e]); }
+      let ok = true;
+      for (const k of kids) { try { await copyTree(k, f.id); } catch (e) { ok = false; errs.push([k, e]); } }
+      return {id:f.id, complete:ok};
+    }
+    const id = await copyFileTo(it, dst, parent);
+    tick();
+    return {id, complete:true};
+  }
+  setBusy(isMove ? "Transfert…" : "Copie…");
+  for (const it of items) {
+    let r;
+    try { r = await copyTree(it, dest); ops.push({t:"trash", acct:dst, id:r.id, title:it.title}); }
+    catch (e) { errs.push([it, e]); continue; }
+    if (isMove) {
+      if (!r.complete) { kept.push(it); continue; }
+      try { await trashFile(it.acct, it.id, true); ops.push({t:"untrash", acct:it.acct, id:it.id, title:it.title}); }
+      catch (e) { kept.push(it); }
+    }
+  }
+  setBusy("");
+  invalidate(dst, new Set([target.id]));
+  if (isMove) invalidate(items[0].acct, new Set(items.map(it => keyOf(it.acct, it.parentId))));
+  sel.forEach(s => s.clear());
+  const done = ops.filter(o => o.t === "trash");
+  if (done.length) {
+    setUndo({ops, restorePaths:[], keys:[]});
+    toast(labelOf(done) + (isMove ? " transféré" : " copié") + (done.length > 1 ? "s" : "") + " vers « " + clean(target.title) + " » (compte " + ACCTS[dst].label + ")" + (n > done.length ? ", " + n + " éléments au total" : "") + ".", {undo:true});
+  }
+  if (kept.length) toast("Copié, mais l'original de " + labelOf(kept) + " est resté en place (copie incomplète ou mise à la corbeille refusée : seul le propriétaire peut le faire).", {err:true, ms:11000});
+  errs.slice(0, 4).forEach(([it, e]) => toast("« " + clean(it.title) + " » : " + errMsg(e), {err:true, ms:9000}));
+  if (errs.length > 4) toast((errs.length - 4) + " autres éléments n'ont pas pu être copiés.", {err:true, ms:9000});
+  refreshAll();
+}
+
+function paneOfItem(it){ for (let i = 0; i < S.count; i++) if (sel[i].has(it.id)) return i; return -1; }
+async function doTrash(items){
+  if (!items.length) return;
+  const acct = items[0].acct;
+  const nF = items.filter(isFolder).length;
+  const what = items.length > 1 ? items.length + " éléments" + (nF ? " (dont " + nF + " dossier" + (nF > 1 ? "s" : "") + " avec leur contenu)" : "") : "« " + clean(items[0].title) + " »" + (nF ? " et tout son contenu" : "");
+  if (!(await confirmDlg("Mettre " + what + " à la corbeille du compte " + ACCTS[acct].label + " ? " + (items.length > 1 ? "Ils resteront récupérables" : "Il restera récupérable") + " 30 jours dans la corbeille de Drive.", "Mettre à la corbeille"))) return;
+  const ops = [], errs = [], keys = new Set(), gone = new Set();
+  setBusy("Mise à la corbeille…");
+  for (const it of items) {
+    try { await trashFile(it.acct, it.id, true); ops.push({t:"untrash", acct:it.acct, id:it.id, title:it.title}); keys.add(keyOf(it.acct, it.parentId)); gone.add(it.id); }
+    catch (e) { errs.push([it, e]); }
+  }
+  setBusy("");
+  const restorePaths = [];
+  S.panes.forEach((p, i) => {
+    if (p.path[0].acct !== acct) return;
+    const k = p.path.findIndex(c => gone.has(c.id));
+    if (k > 0) { restorePaths.push([i, p.path.slice()]); p.path = p.path.slice(0, k); }
+    if (p.preview && gone.has(p.preview.id)) p.preview = null;
+  });
+  invalidate(acct, keys); sel.forEach(s => s.clear());
+  if (ops.length) {
+    setUndo({ops, restorePaths, keys:[]});
+    toast(labelOf(ops) + " mis" + (ops.length > 1 ? "" : "") + " à la corbeille.", {undo:true});
+  }
+  errs.forEach(([it, e]) => toast("« " + clean(it.title) + " » n'a pas été mis à la corbeille. " + (e && e.status === 403 ? "Seul le propriétaire (" + (it.owner || "autre compte") + ") peut le faire." : errMsg(e)), {err:true, ms:9000}));
+  refreshAll();
+}
+async function undo(){
+  const b = undoBatch; if (!b) return;
+  setUndo(null);
+  const errs = [];
+  setBusy("Annulation…");
+  for (const o of b.ops.slice().reverse()) {
+    try {
+      if (o.t === "move") await moveFile(o.acct, o.id, o.from, o.to);
+      else if (o.t === "rename") await api(o.acct, "PATCH", "files/" + encodeURIComponent(o.id), {query:{supportsAllDrives:true, fields:"id"}, body:{name:o.from}});
+      else if (o.t === "trash") await trashFile(o.acct, o.id, true);
+      else if (o.t === "untrash") await trashFile(o.acct, o.id, false);
+    } catch (e) { errs.push([o, e]); }
+  }
+  setBusy("");
+  b.restorePaths.forEach(([i, path]) => { S.panes[i].path = path; });
+  cache.clear();
+  errs.forEach(([o, e]) => toast("Annulation incomplète pour « " + clean(o.title) + " ». " + errMsg(e), {err:true, ms:9000}));
+  if (!errs.length) toast("Opération annulée" + (b.ops.some(o => o.t === "trash") ? " : les copies sont dans la corbeille." : b.ops.every(o => o.t === "untrash") ? " : les éléments sont revenus à leur place." : "."));
+  sel.forEach(s => s.clear());
+  refreshAll();
+}
+function toast(msg, o){
+  o = o || {};
+  const t = h("div", {class:"toast" + (o.err ? " err" : "") + (o.undo ? " undo" : "")}, h("span", {}, msg),
+    o.undo ? h("button", {onclick:() => { t.remove(); undo(); }}, "Annuler") : null,
+    h("button", {class:"x", title:"Fermer", onclick:() => t.remove()}, "×"));
+  $("#toasts").append(t);
+  setTimeout(() => t.remove(), o.ms || 8000);
+}
+
+/* ===== Navigation ===== */
+const entryOf = it => ({acct:it.acct, id:it.id, title:it.title, owner:it.owner});
+function goTo(i, k){ const p = S.panes[i]; p.path = p.path.slice(0, k + 1); p.preview = null; sel[i].clear(); renderPane(i); loadPane(i); save(); }
+function navInto(i, it){ const p = S.panes[i]; p.path.push(entryOf(it)); p.preview = null; sel[i].clear(); renderPane(i); loadPane(i); save(); }
+function openInColumns(i, it, level){
+  const p = S.panes[i];
+  p.path = p.path.slice(0, level + 1);
+  if (isFolder(it)) { p.path.push(entryOf(it)); p.preview = null; } else p.preview = it;
+  renderPane(i); loadPane(i); save();
+}
+
+/* ===== Recherche dans tout le Drive ===== */
+function toggleSearch(i, force){
+  const z = srch[i]; z.open = force != null ? force : !z.open;
+  if (!z.open) { z.q = ""; z.results = null; z.err = null; z.loading = false; z.seq++; }
+  renderPane(i);
+  if (z.open) { const inp = paneEls[i].querySelector(".sbar input[type=search]"); if (inp) inp.focus(); }
+}
+let sTimer = null;
+function queueSearch(i){ clearTimeout(sTimer); sTimer = setTimeout(() => runSearch(i), 450); }
+async function runSearch(i){
+  const z = srch[i], acct = S.panes[i].path[0].acct, q = z.q.trim();
+  const seq = ++z.seq;
+  if (!q) { z.results = null; z.loading = false; z.err = null; renderBody(i); return; }
+  if (!connected(acct)) { z.err = {code:"needs_auth"}; renderBody(i); return; }
+  z.loading = true; z.err = null; renderBody(i);
+  const words = q.split(/\s+/).filter(Boolean).slice(0, 6);
+  const cond = words.map(w => (z.content ? "fullText contains '" : "name contains '") + qid(w) + "'").join(" and ");
+  const query = {q:cond + " and trashed = false", fields:FIELDS, pageSize:200, corpora:"allDrives", supportsAllDrives:true, includeItemsFromAllDrives:true};
+  if (!z.content) query.orderBy = "folder,modifiedTime desc";
+  try {
+    const res = await api(acct, "GET", "files", {query});
+    if (seq !== z.seq) return;
+    z.results = (res.files || []).map(f => mapFile(f, acct)); z.trunc = !!res.nextPageToken;
+    z.loading = false; renderBody(i);
+    fillParentNames(i, acct, z.results, seq);
+  } catch (e) { if (seq !== z.seq) return; z.loading = false; z.err = e; renderBody(i); }
+}
+function parentLabel(acct, it){
+  const pid = it.parentId;
+  if (!pid) return it.driveId ? "Disque partagé" : "Partagé avec moi";
+  if (pid === ACCTS[acct].rootId) return "Mon Drive";
+  const d = ACCTS[acct].drives.find(x => x.id === pid); if (d) return d.name;
+  const n = nameCache.get(ck(acct, pid)); return n == null ? "…" : n;
+}
+async function fillParentNames(i, acct, items, seq){
+  const need = [...new Set(items.map(x => x.parentId).filter(pid => pid && pid !== ACCTS[acct].rootId && !ACCTS[acct].drives.some(d => d.id === pid) && !nameCache.has(ck(acct, pid))))].slice(0, 60);
+  let n = 0;
+  const work = async () => { while (n < need.length) { const pid = need[n++];
+    try { const f = await api(acct, "GET", "files/" + encodeURIComponent(pid), {query:{fields:"id,name", supportsAllDrives:true}}); nameCache.set(ck(acct, pid), f.name); }
+    catch (e) { nameCache.set(ck(acct, pid), "(dossier inaccessible)"); } } };
+  await Promise.all([work(), work(), work(), work()]);
+  if (srch[i].seq === seq && srch[i].open) renderBody(i);
+}
+async function revealItem(i, it){
+  const p = S.panes[i], acct = it.acct;
+  try {
+    const f = await api(acct, "GET", "files/" + encodeURIComponent(it.id), {query:{fields:"id,name,mimeType,parents,owners(emailAddress),driveId", supportsAllDrives:true}});
+    const {root, chain} = await chainOf(acct, f);
+    if (isFolder(it)) { p.path = [root, ...chain, entryOf(it)]; p.preview = null; }
+    else { p.path = [root, ...chain]; p.preview = it; p.mode = "columns"; }
+    srch[i].open = false; srch[i].q = ""; srch[i].results = null; srch[i].seq++;
+    sel[i].clear(); renderPane(i); loadPane(i); save();
+  } catch (e) { toast(errMsg(e), {err:true}); }
+}
+function renderSearch(i, body){
+  const z = srch[i], acct = S.panes[i].path[0].acct;
+  body.classList.add("list");
+  if (!connected(acct)) { body.append(paneMsg(i)); return null; }
+  if (z.loading) { body.append(msgEl("Recherche en cours…")); return null; }
+  if (z.err) { body.append(msgEl(errMsg(z.err), true, () => runSearch(i))); return null; }
+  if (!z.results) { body.append(msgEl("Tapez un mot pour chercher dans tout le Drive " + ACCTS[acct].label + " (dossiers, fichiers, éléments partagés).")); return null; }
+  const items = z.results;
+  body.append(h("div", {class:"row hdr srow"}, h("span"), h("span", {}, "Nom"), h("span", {}, "Dans le dossier"), h("span", {}, "Modifié")));
+  if (!items.length) { body.append(msgEl("Aucun résultat pour « " + z.q.trim() + " ».")); return items; }
+  const ctx = {containerPath:[S.panes[i].path[0]], level:0, list:items, search:true, reveal:it => revealItem(i, it)};
+  items.forEach(it => {
+    const loc = h("button", {class:"sloc", title:"Afficher dans son dossier", onclick:ev => { ev.stopPropagation(); revealItem(i, it); }}, parentLabel(acct, it));
+    const row = h("div", {class:"row srow", title:clean(it.title) + "\nDouble-clic : " + (isFolder(it) ? "ouvrir le dossier" : "afficher dans son dossier")}, iconEl(it),
+      h("span", {class:"nm"}, h("span", {class:"name"}, clean(it.title)), ownerTag(it)),
+      loc, h("span", {class:"meta"}, fmtDate(it.modifiedTime)));
+    attachItem(row, i, it, ctx); body.append(row);
+  });
+  return items;
+}
+
+/* ===== Rendu ===== */
+function itemsOf(acct, id, p, applyFilter){
+  const e = cache.get(ck(acct, id)); if (!e) return null;
+  let arr = e.items.slice();
+  const f = applyFilter ? p.filter.trim().toLowerCase() : "";
+  if (f) arr = arr.filter(x => (x.title || "").toLowerCase().includes(f));
+  if (p.sort === "custom") {
+    const ord = S.order[ck(acct, id)] || [], pos = new Map(ord.map((x, n) => [x, n]));
+    arr.sort((a, b) => {
+      const pa = pos.has(a.id), pb = pos.has(b.id);
+      if (pa && pb) return pos.get(a.id) - pos.get(b.id);
+      if (pa !== pb) return pa ? -1 : 1;
+      const fa = isFolder(a), fb = isFolder(b);
+      if (fa !== fb) return fa ? -1 : 1;
+      return coll.compare(a.title || "", b.title || "");
+    });
+    return arr;
+  }
+  arr.sort((a, b) => {
+    const fa = isFolder(a), fb = isFolder(b);
+    if (fa !== fb) return fa ? -1 : 1;
+    const r = p.sort === "modified" ? (a.modifiedTime || "").localeCompare(b.modifiedTime || "") : coll.compare(a.title || "", b.title || "");
+    return p.dir === "desc" ? -r : r;
+  });
+  return arr;
+}
+function msgEl(text, err, action, actionLabel){
+  return h("div", {class:"msg" + (err ? " err" : "")}, h("div", {}, text), action ? h("button", {class:"pill-btn", onclick:action}, actionLabel || "Réessayer") : null);
+}
+function paneMsg(i){
+  const acct = S.panes[i].path[0].acct;
+  if (!connected(acct)) return msgEl("Le compte " + ACCTS[acct].label + " (" + (ACCTS[acct].email || ACCTS[acct].hint) + ") n'est pas connecté.", false, () => connect(acct).catch(() => {}), "Connecter le compte " + ACCTS[acct].label);
+  if (paneErr[i]) return msgEl(errMsg(paneErr[i]), true, () => paneErr[i] && paneErr[i].code === "needs_auth" ? connect(acct).catch(() => {}) : loadPane(i, true), paneErr[i].code === "needs_auth" ? "Reconnecter" : "Réessayer");
+  return msgEl("Chargement…");
+}
+function renderPane(i){
+  const p = S.panes[i], el = paneEls[i];
+  el.innerHTML = "";
+  const acct = p.path[0].acct, rootId = p.path[0].id;
+  const rootSel = h("select", {title:"Compte et racine du cadran", onchange:e => {
+      const [a, ...r] = e.target.value.split("|"); const v = r.join("|");
+      if (v.startsWith("pin:")) { const pin = S.pins.find(x => x.acct === a && x.id === v.slice(4)); if (pin) p.path = [{...pin}]; }
+      else if (v.startsWith("drive:")) { const d = ACCTS[a].drives.find(x => "drive:" + x.id === v); p.path = [rootEntry(a, v, d ? d.name : "Disque partagé")]; }
+      else p.path = [rootEntry(a, v)];
+      p.preview = null; sel[i].clear(); renderPane(i); loadPane(i); save();
+    }},
+    ACCT_KEYS.map(a => h("optgroup", {label:ACCTS[a].label + (ACCTS[a].email ? " - " + ACCTS[a].email : "")},
+      Object.keys(VIRT).map(k => h("option", {value:a + "|" + k, selected:acct === a && rootId === k}, VIRT[k])),
+      ACCTS[a].drives.map(d => h("option", {value:a + "|drive:" + d.id, selected:acct === a && rootId === "drive:" + d.id}, "Disque partagé : " + d.name)),
+      S.pins.filter(x => x.acct === a).map(x => h("option", {value:a + "|pin:" + x.id, selected:acct === a && rootId === x.id}, "★ " + clean(x.title))))),
+    (!VIRT[rootId] && !rootId.startsWith("drive:") && !S.pins.some(x => x.acct === acct && x.id === rootId)) ? h("option", {value:acct + "|pin:" + rootId, selected:true}, clean(p.path[0].title)) : null);
+  const chip = h("span", {class:"space " + acct, title:acctName(acct)}, ACCTS[acct].label.toUpperCase());
+  const up = h("button", {class:"ibtn", title:"Dossier parent", disabled:p.path.length < 2, html:ICON.up, onclick:() => goTo(i, p.path.length - 2)});
+  const crumbs = h("div", {class:"crumbs"});
+  p.path.forEach((c, k) => {
+    if (k) crumbs.append(h("span", {class:"sep"}, "›"));
+    const b = h("button", {class:"crumb" + (k === p.path.length - 1 ? " last" : ""), title:clean(c.title), onclick:() => goTo(i, k)}, clean(c.title));
+    makeDropTarget(b, () => ({acct, id:c.id, title:c.title, owner:c.owner, path:p.path.slice(0, k + 1)}), "drop-target");
+    crumbs.append(b);
+  });
+  const modes = h("div", {class:"seg"}, [["icons","Vue icônes",ICON.grid],["list","Vue liste",ICON.list],["columns","Vue colonnes",ICON.cols]].map(([m, t, ic]) =>
+    h("button", {class:p.mode === m ? "on" : "", title:t, html:ic, onclick:() => { p.mode = m; p.preview = null; renderPane(i); loadPane(i); save(); }})));
+  const sortSel = h("select", {title:"Ordre d'affichage", onchange:e => { const [so, di] = e.target.value.split("|"); p.sort = so; p.dir = di; save(); renderPane(i); }},
+    [["name|asc","Nom A → Z"],["name|desc","Nom Z → A"],["modified|desc","Modifiés récemment"],["custom|asc","Ordre libre"]].map(([v, t]) =>
+      h("option", {value:v, selected:(p.sort === "custom" ? "custom|asc" : p.sort + "|" + p.dir) === v}, t)));
+  const filt = h("input", {type:"search", placeholder:"Filtrer…", value:p.filter, title:"Filtrer le dossier affiché", oninput:e => { p.filter = e.target.value; renderBody(i); }});
+  const refresh = h("button", {class:"ibtn", title:"Rafraîchir", html:ICON.refresh, onclick:() => srch[i].open && srch[i].q ? runSearch(i) : loadPane(i, true)});
+  const z = srch[i];
+  const loupe = h("button", {class:"ibtn" + (z.open ? " on" : ""), title:"Rechercher dans tout le Drive " + ACCTS[acct].label, html:ICON.search, onclick:() => toggleSearch(i)});
+  const closeBtn = S.count > 1 ? h("button", {class:"ibtn pclose", title:"Fermer ce cadran", onclick:() => closePane(i)}, "×") : null;
+  el.append(h("div", {class:"pane-head"}, chip, rootSel, up, crumbs, loupe, filt, sortSel, modes, refresh, closeBtn));
+  if (z.open) {
+    const inp = h("input", {type:"search", value:z.q, placeholder:"Rechercher dans tout le Drive " + ACCTS[acct].label + "…",
+      oninput:e => { z.q = e.target.value; queueSearch(i); },
+      onkeydown:e => { if (e.key === "Enter") { clearTimeout(sTimer); runSearch(i); } else if (e.key === "Escape") { e.stopPropagation(); toggleSearch(i, false); } }});
+    const cb = h("label", {class:"scb", title:"Chercher aussi les mots à l'intérieur des documents (plus lent, résultats non triés)"},
+      h("input", {type:"checkbox", checked:z.content, onchange:e => { z.content = e.target.checked; if (z.q.trim()) runSearch(i); }}), "dans le contenu");
+    el.append(h("div", {class:"sbar"}, h("span", {class:"sico", html:ICON.search}), inp, cb,
+      h("button", {class:"ibtn pclose", title:"Fermer la recherche (Échap)", onclick:() => toggleSearch(i, false)}, "×")));
+  }
+  el.append(h("div", {class:"status"}));
+  lastKey[i] = "";
+  renderBody(i);
+}
+function renderBody(i){
+  const p = S.panes[i], el = paneEls[i];
+  const acct = p.path[0].acct;
+  const old = el.querySelector(".pane-body");
+  const cur = p.path[p.path.length - 1];
+  const key = p.mode + "|" + acct + "|" + p.path.map(c => c.id).join("/");
+  const keep = key === lastKey[i];
+  const oldTop = old ? old.scrollTop : 0;
+  const oldCols = old && old.querySelector(".columns"); const oldLeft = oldCols ? oldCols.scrollLeft : 0;
+  const body = h("div", {class:"pane-body"});
+  body.addEventListener("click", () => { if (sel[i].size) { sel[i].clear(); renderBody(i); } });
+  let count = null, total = null, trunc = false;
+  const folderIds = [];
+  if (srch[i].open && (srch[i].q.trim() || srch[i].results || srch[i].loading)) {
+    const items = renderSearch(i, body);
+    if (old) old.replaceWith(body); else el.insertBefore(body, el.querySelector(".status"));
+    lastKey[i] = "search";
+    const st = el.querySelector(".status"); st.innerHTML = "";
+    if (items) { st.append(h("span", {}, items.length + " résultat" + (items.length > 1 ? "s" : "") + " dans tout le Drive " + ACCTS[acct].label)); if (srch[i].trunc) st.append(h("span", {}, "200 premiers seulement - précisez la recherche")); if (sel[i].size) st.append(h("span", {}, sel[i].size + " sélectionné" + (sel[i].size > 1 ? "s" : ""))); }
+    return;
+  }
+  const tgt = (c, path) => () => ({acct, id:c.id, title:c.title, owner:c.owner, path});
+
+  if (!connected(acct)) body.append(paneMsg(i));
+  else if (p.mode === "columns") {
+    body.classList.add("ncol");
+    const wrap = h("div", {class:"columns"});
+    p.path.forEach((c, k) => {
+      const col = h("div", {class:"col"});
+      const last = k === p.path.length - 1;
+      makeDropTarget(col, tgt(c, p.path.slice(0, k + 1)), "drop-on");
+      const items = itemsOf(acct, c.id, p, last);
+      if (items == null) col.append(paneMsg(i));
+      else if (!items.length) col.append(msgEl(last && p.filter ? "Aucun résultat" : "Dossier vide"));
+      else items.forEach(it => {
+        const next = p.path[k + 1];
+        const on = (next && next.id === it.id) || (last && p.preview && p.preview.id === it.id);
+        const row = h("div", {class:"citem" + (on ? " open-path" : ""), title:clean(it.title)}, iconEl(it), h("span", {class:"name"}, clean(it.title)), ownerTag(it), countEl(it), isFolder(it) ? h("span", {class:"chev"}, "›") : null);
+        attachItem(row, i, it, {containerPath:p.path.slice(0, k + 1), level:k, list:items});
+        if (isFolder(it) && last) folderIds.push(it.id);
+        col.append(row);
+      });
+      if (last && items) { count = items.length; const e = cache.get(ck(acct, c.id)); total = e ? e.items.length : null; trunc = e && e.truncated; }
+      const cw = h("div", {class:"colwrap", style:"width:" + colW(p, k) + "px"}, col);
+      const grip = h("div", {class:"cgrip", title:"Glisser pour régler la largeur (⌥ : toutes les colonnes) - double-clic : largeur par défaut"});
+      grip.addEventListener("pointerdown", e => startColResize(e, i, k, cw, grip));
+      grip.addEventListener("dblclick", e => { e.stopPropagation(); if (p.colW) { if (e.altKey) p.colW = {}; else delete p.colW[k]; } save(); renderBody(i); });
+      grip.addEventListener("click", e => e.stopPropagation());
+      cw.append(grip);
+      wrap.append(cw);
+    });
+    if (p.preview) { const pv = previewCol(p.preview, i); if (!p.pvWide) pv.style.flexBasis = "calc(100% - " + colW(p, p.path.length - 1) + "px)"; wrap.append(pv); }
+    body.append(wrap);
+  } else {
+    makeDropTarget(body, tgt(cur, p.path), "drop-on");
+    const items = itemsOf(acct, cur.id, p, true);
+    if (items == null) body.append(paneMsg(i));
+    else {
+      const e = cache.get(ck(acct, cur.id)); count = items.length; total = e.items.length; trunc = e.truncated;
+      const ctx = {containerPath:p.path, level:p.path.length - 1, list:items};
+      items.forEach(it => { if (isFolder(it)) folderIds.push(it.id); });
+      const empty = () => msgEl(p.filter ? "Aucun résultat" : "Dossier vide - déposez des éléments ici");
+      if (p.mode === "list") {
+        body.classList.add("list");
+        const sortBtn = (k, label) => h("button", {class:p.sort === k ? "on" : "", onclick:ev => { ev.stopPropagation(); if (p.sort === k) p.dir = p.dir === "asc" ? "desc" : "asc"; else { p.sort = k; p.dir = k === "modified" ? "desc" : "asc"; } save(); renderBody(i); }},
+          label + (p.sort === k ? (p.dir === "asc" ? " ↑" : " ↓") : ""));
+        body.append(h("div", {class:"row hdr"}, h("span"), sortBtn("name", "Nom"), sortBtn("modified", "Modifié"), h("span", {}, "Taille")));
+        if (!items.length) body.append(empty());
+        items.forEach(it => {
+          const row = h("div", {class:"row", title:clean(it.title)}, iconEl(it),
+            h("span", {class:"nm"}, h("span", {class:"name"}, clean(it.title)), ownerTag(it), countEl(it)),
+            h("span", {class:"meta"}, fmtDate(it.modifiedTime)), h("span", {class:"meta"}, fmtSize(it)));
+          attachItem(row, i, it, ctx); body.append(row);
+        });
+      } else {
+        if (!items.length) body.append(empty());
+        const grid = h("div", {class:"icons"});
+        items.forEach(it => {
+          const t = h("div", {class:"tile", title:clean(it.title) + (it.owner ? "\nPropriétaire : " + it.owner : "")},
+            h("div", {class:"art" + (isFolder(it) ? "" : " file"), html:iconSvg(it)}),
+            h("div", {class:"nwrap"}, h("span", {class:"name"}, clean(it.title))));
+          const art = t.firstChild; const tg = ownerTag(it), ct = countEl(it);
+          if (tg) art.append(tg); if (ct) art.append(ct);
+          attachItem(t, i, it, ctx); grid.append(t);
+        });
+        body.append(grid);
+      }
+    }
+  }
+  if (old) old.replaceWith(body); else el.insertBefore(body, el.querySelector(".status"));
+  if (keep) { body.scrollTop = oldTop; const c = body.querySelector(".columns"); if (c) c.scrollLeft = oldLeft; }
+  else { const c = body.querySelector(".columns"); if (c) c.scrollLeft = c.scrollWidth; }
+  lastKey[i] = key;
+  if (folderIds.length) wantCounts(acct, folderIds);
+  const st = el.querySelector(".status");
+  st.innerHTML = "";
+  if (count != null) {
+    st.append(h("span", {}, (p.filter && total != null && total !== count) ? count + " sur " + total + " éléments" : count + " élément" + (count > 1 ? "s" : "")));
+    if (sel[i].size) st.append(h("span", {}, sel[i].size + " sélectionné" + (sel[i].size > 1 ? "s" : "")));
+    if (trunc) st.append(h("span", {}, "liste tronquée"));
+  }
+}
+const COLW = 230;
+function colW(p, k){ const w = p.colW && (p.colW[k] != null ? p.colW[k] : p.colW.all); return w || COLW; }
+function startColResize(e, i, k, cw, grip){
+  if (e.button !== 0) return;
+  e.preventDefault(); e.stopPropagation();
+  const p = S.panes[i], x0 = e.clientX, w0 = cw.getBoundingClientRect().width, all = e.altKey;
+  const wraps = all ? [...paneEls[i].querySelectorAll(".colwrap")] : [cw];
+  document.body.classList.add("resizing"); grip.classList.add("on");
+  try { grip.setPointerCapture(e.pointerId); } catch(_) {}
+  let w = w0;
+  const mv = ev => { w = Math.max(120, Math.min(700, Math.round(w0 + ev.clientX - x0))); wraps.forEach(x => x.style.width = w + "px");
+    const pv = paneEls[i].querySelector(".preview:not(.wide)"); if (pv && (all || k === p.path.length - 1)) pv.style.flexBasis = "calc(100% - " + w + "px)"; };
+  const up = () => { grip.removeEventListener("pointermove", mv); grip.removeEventListener("pointerup", up); grip.removeEventListener("pointercancel", up);
+    document.body.classList.remove("resizing"); grip.classList.remove("on");
+    p.colW = p.colW || {};
+    if (all) p.colW = {all:w}; else p.colW[k] = w;
+    save(); };
+  grip.addEventListener("pointermove", mv); grip.addEventListener("pointerup", up); grip.addEventListener("pointercancel", up);
+}
+function previewCol(it, i){
+  const p = S.panes[i];
+  const box = h("div", {class:"pv-box"}, msgEl("Chargement de l'aperçu…"));
+  const el = h("div", {class:"preview" + (p.pvWide ? " wide" : ""), onclick:e => e.stopPropagation()},
+    h("div", {class:"pv-top"}, h("span", {class:"ico", html:iconSvg(it)}), h("div", {class:"pv-name"}, clean(it.title)),
+      it.viewUrl ? h("a", {class:"btn", href:it.viewUrl, target:"_blank", rel:"noopener"}, "Ouvrir dans Drive") : null,
+      h("button", {class:"ibtn sq", title:p.pvWide ? "Réduire l'aperçu (afficher la colonne)" : "Agrandir l'aperçu (masquer la colonne)", onclick:() => { p.pvWide = !p.pvWide; save(); renderPane(i); }}, p.pvWide ? "⇲" : "⤢"),
+      h("button", {class:"ibtn sq", title:"Fermer l'aperçu", onclick:() => { p.preview = null; renderPane(i); save(); }}, "×")),
+    h("div", {class:"pv-meta"}, h("span", {}, kind(it)[1]), it.fileSize ? h("span", {}, fmtSize(it)) : null,
+      h("span", {}, "Modifié " + fmtDate(it.modifiedTime, true)), it.owner ? h("span", {}, it.owner) : null),
+    box);
+  loadPreview(it, box);
+  return el;
+}
+const pvCache = new Map();
+async function apiBlob(acct, path, query){
+  const a = ACCTS[acct];
+  if (!connected(acct)) { const e = new Error("auth"); e.code = "needs_auth"; e.acct = acct; throw e; }
+  const url = new URL(API + path);
+  for (const k in query) url.searchParams.set(k, query[k]);
+  const r = await doFetch(url.toString(), {headers:{Authorization:"Bearer " + a.token}});
+  if (r.status === 401) { needAuth(acct); const e = new Error("auth"); e.code = "needs_auth"; e.acct = acct; throw e; }
+  if (!r.ok) { const e = new Error("HTTP " + r.status); e.status = r.status; throw e; }
+  return r.blob();
+}
+async function loadPreview(it, box){
+  const m = it.mimeType || "", size = Number(it.fileSize || 0), q = encodeURIComponent;
+  const key = it.acct + ":" + it.id + ":" + (it.modifiedTime || "");
+  const show = v => {
+    box.innerHTML = "";
+    if (v.kind === "img") box.append(h("img", {src:v.url, alt:""}));
+    else if (v.kind === "frame") box.append(h("iframe", {src:v.url, allow:"autoplay; fullscreen"}));
+    else box.append(h("pre", {}, v.text));
+  };
+  const drivePreview = () => ({kind:"frame", url:"https://drive.google.com/file/d/" + q(it.id) + "/preview?authuser=" + q(ACCTS[it.acct].email || "")});
+  try {
+    if (pvCache.has(key)) return show(pvCache.get(key));
+    let v;
+    const exportable = /google-apps\.(document|spreadsheet|presentation|drawing)/.test(m);
+    if (exportable) {
+      const b = await apiBlob(it.acct, "files/" + q(it.id) + "/export", {mimeType:"application/pdf"});
+      v = {kind:"frame", url:URL.createObjectURL(new Blob([b], {type:"application/pdf"}))};
+    } else if (m.startsWith("image/") && size < 25e6) {
+      v = {kind:"img", url:URL.createObjectURL(await apiBlob(it.acct, "files/" + q(it.id), {alt:"media", supportsAllDrives:"true"}))};
+    } else if (m === "application/pdf" && size < 40e6) {
+      const b = await apiBlob(it.acct, "files/" + q(it.id), {alt:"media", supportsAllDrives:"true"});
+      v = {kind:"frame", url:URL.createObjectURL(new Blob([b], {type:"application/pdf"}))};
+    } else if ((m.startsWith("text/") || /json|markdown|xml|javascript/.test(m)) && size < 2e6) {
+      const b = await apiBlob(it.acct, "files/" + q(it.id), {alt:"media", supportsAllDrives:"true"});
+      v = {kind:"text", text:(await b.text()).slice(0, 200000)};
+    } else if (m === "application/vnd.google-apps.shortcut" || m === "application/vnd.google-apps.form" || m === "application/vnd.google-apps.site") {
+      box.innerHTML = ""; box.append(msgEl("Pas d'aperçu pour ce type d'élément : utilisez « Ouvrir dans Drive »."));
+      return;
+    } else v = drivePreview();
+    pvCache.set(key, v);
+    if (box.isConnected) show(v);
+  } catch (e) {
+    if (e && e.status === 403 && /google-apps/.test(m)) { const v = drivePreview(); pvCache.set(key, v); return show(v); }
+    box.innerHTML = ""; box.append(msgEl("Aperçu indisponible. " + errMsg(e), true));
+  }
+}
+function renderAccts(){
+  const box = $("#accts"); box.innerHTML = "";
+  ACCT_KEYS.forEach(k => {
+    const a = ACCTS[k], on = connected(k);
+    box.append(h("button", {class:"acct" + (on ? " on" : "") + (a.need && !on ? " need" : ""), title:on ? "Connecté. Cliquer pour changer de compte Google." : "Cliquer pour connecter ce compte",
+      onclick:() => connect(k, on).catch(() => {})},
+      h("span", {class:"dot"}), h("span", {class:"k " + k}, a.label.toUpperCase()), h("span", {class:"em"}, on ? a.email : (a.need ? "à reconnecter" : "Connecter"))));
+  });
+}
+function renderTop(){
+  renderAccts();
+  const sc = $("#segCount"); sc.innerHTML = "";
+  [1,2,3,4].forEach(n => sc.append(h("button", {class:S.count === n ? "on" : "", onclick:() => setCount(n)}, String(n))));
+  const sl = $("#segLayout"); sl.innerHTML = "";
+  [["cols","Côte à côte"],["grid","Grille"],["rows","Empilés"]].forEach(([k, t]) => sl.append(h("button", {class:S.layout === k ? "on" : "", onclick:() => { S.layout = k; layout(); renderTop(); save(); }}, t)));
+  $("#chkConfirm").checked = S.confirm;
+}
+function layout(){
+  const m = $("#main");
+  m.dataset.layout = S.layout; m.dataset.n = S.count; m.style.setProperty("--n", S.count);
+  [...m.children].forEach(c => c.remove());
+  for (let i = 0; i < S.count; i++) m.append(paneEls[i]);
+}
+function closePane(i){
+  if (S.count <= 1) return;
+  const mv = arr => { const [x] = arr.splice(i, 1); arr.push(x); };
+  mv(S.panes); mv(paneEls); mv(sel); mv(anchor); mv(paneErr); mv(lastKey); mv(srch);
+  sel.forEach(s => s.clear());
+  S.count--; layout(); renderTop();
+  for (let k = 0; k < 4; k++) renderPane(k);
+  for (let k = 0; k < S.count; k++) loadPane(k);
+  save();
+}
+function setCount(n){
+  const prev = S.count; S.count = n; layout(); renderTop(); save();
+  for (let i = 0; i < n; i++) { renderPane(i); if (i >= prev) loadPane(i); }
+}
+
+/* ===== Écran de configuration ===== */
+function setupScreen(){
+  document.querySelector("header.top").style.display = "none";
+  const inp = h("input", {placeholder:"123456789-xxxxxxxx.apps.googleusercontent.com", spellcheck:"false"});
+  $("#main").replaceWith(h("div", {class:"setup"},
+    h("h2", {}, "Configuration initiale"),
+    h("p", {}, "Collez l'ID client OAuth créé dans la console Google Cloud (type « Application Web »). L'origine JavaScript autorisée doit être exactement :"),
+    h("p", {}, h("code", {}, location.origin)),
+    inp,
+    h("button", {class:"pill-btn", style:"background:var(--accent);color:#fff;border-color:var(--accent)", onclick:() => {
+      const v = inp.value.trim();
+      if (!/\.apps\.googleusercontent\.com$/.test(v)) { toast("Cet identifiant ne ressemble pas à un ID client OAuth Google.", {err:true}); return; }
+      try { localStorage.setItem(CFG, JSON.stringify({clientId:v})); } catch(e) {}
+      location.reload();
+    }}, "Enregistrer et continuer"),
+    h("p", {class:"meta", style:"margin-top:14px"}, "L'identifiant est conservé dans ce navigateur uniquement. Il n'est pas secret.")));
+}
+
+/* ===== Démarrage ===== */
+if (!CLIENT_ID) { setupScreen(); return; }
+$("#chkConfirm").addEventListener("change", e => { S.confirm = e.target.checked; save(); });
+$("#btnUndo").addEventListener("click", undo);
+$("#btnHelp").addEventListener("click", e => { const r = e.target.getBoundingClientRect(); helpMenu(r.right - 380, r.bottom + 8); });
+document.addEventListener("keydown", e => {
+  const tag = (e.target && e.target.tagName) || "";
+  if (e.key === "F2" && !/INPUT|TEXTAREA|SELECT/.test(tag) && !document.querySelector(".menu,.modal-bg")) {
+    for (let i = 0; i < S.count; i++) if (sel[i].size === 1) { e.preventDefault(); doRename([...sel[i].values()][0]); return; }
+  }
+  if ((e.key === "Delete" || e.key === "Backspace") && !/INPUT|TEXTAREA|SELECT/.test(tag) && !document.querySelector(".menu,.modal-bg")) {
+    for (let i = 0; i < S.count; i++) if (sel[i].size) { e.preventDefault(); doTrash([...sel[i].values()]); return; }
+  }
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !document.querySelector(".menu")) { sel.forEach(s => s.clear()); for (let i = 0; i < S.count; i++) renderBody(i); } });
+renderTop(); layout();
+for (let i = 0; i < 4; i++) renderPane(i);
+for (let i = 0; i < S.count; i++) loadPane(i);
+resolvePending();
+if (pendingFolder && !ACCT_KEYS.some(connected)) { toast("Connectez un compte pour ouvrir le dossier demandé depuis Drive.", {ms:15000}); const t = document.querySelector(".toast:last-child"); if (t) t.classList.add("pending"); }
+let lastSync = 0;
+function stamp(){ lastSync = Date.now(); const b = $("#btnRefreshAll"); if (b) b.title = "Dernière actualisation : " + new Date(lastSync).toLocaleTimeString("fr-FR", {hour:"2-digit", minute:"2-digit"}) + ". Cliquer pour tout relire depuis Google Drive."; }
+$("#btnRefreshAll").addEventListener("click", () => { cache.clear(); refreshAll(); stamp(); toast("Tous les cadrans ont été relus depuis Google Drive."); });
+const sig = e => e ? e.items.map(x => x.id + "|" + x.title + "|" + x.modifiedTime + "|" + x.parentId).join(";") : "";
+async function autoRefresh(){
+  if (document.visibilityState !== "visible" || drag || document.querySelector(".menu,.modal-bg") || $("#busy").classList.contains("on")) return;
+  for (let i = 0; i < S.count; i++) {
+    const acct = S.panes[i].path[0].acct;
+    if (!connected(acct)) continue;
+    let changed = false;
+    for (const id of idsShown(i)) {
+      const before = sig(cache.get(ck(acct, id)));
+      try { const after = sig(await fetchFolder(acct, id, {force:true})); if (after !== before) changed = true; } catch (e) {}
+    }
+    if (changed && !drag && i < S.count) renderBody(i);
+  }
+  stamp();
+}
+setInterval(autoRefresh, 60000);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && Date.now() - lastSync > 60000) autoRefresh(); });
+stamp();
+setInterval(() => { for (const k of ACCT_KEYS) { const a = ACCTS[k]; if (a.token && a.exp < Date.now()) needAuth(k); } }, 30000);
+})();
+</script>
+</body>
+</html>

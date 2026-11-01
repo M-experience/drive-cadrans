@@ -78,6 +78,8 @@ input[type=search]{width:110px}
 .imp{position:absolute;left:-5px;top:-5px;width:13px;height:13px;border-radius:50%;background:#e5383b;color:#fff;font:800 10px/13px system-ui,sans-serif;text-align:center;box-shadow:0 0 0 2px #fff;pointer-events:auto}
 .art .imp{left:-4px;top:-4px;width:22px;height:22px;font-size:15px;line-height:22px}
 .tile.important .name{color:#c1121f}
+.impbtn{font:800 14px/1 system-ui,sans-serif;color:#c1121f}
+.impbtn.on{background:#e5383b !important;color:#fff !important}
 .count{background:#fff;color:var(--text);font-weight:800;border-radius:999px;box-shadow:0 1px 3px rgba(31,43,61,.22);white-space:nowrap}
 .count:empty{display:none}
 .tag{font-size:10.5px;font-weight:800;border-radius:999px;padding:1px 7px;white-space:nowrap;flex-shrink:0}
@@ -229,8 +231,8 @@ const ACCTS = {
 };
 const ACCT_KEYS = ["perso","edm"];
 const EDM_EMAIL = "contact@ecole-edm.fr";
-const VIRT = {root:"Mon Drive", shared:"Partagés avec moi", starred:"Favoris"};
-const isVirt = id => id === "shared" || id === "starred";
+const VIRT = {root:"Mon Drive", shared:"Partagés avec moi", starred:"Favoris", important:"Importants"};
+const isVirt = id => id === "shared" || id === "starred" || id === "important";
 const FOLDER = "application/vnd.google-apps.folder";
 const isFolder = it => it.mimeType === FOLDER;
 const STORE = "drive-cadrans-web.v1", TOK = "drive-cadrans-web.tok", CFG = "drive-cadrans-web.cfg";
@@ -241,7 +243,7 @@ const PAL = {
 const doFetch = (...a) => (window.__MOCK_FETCH || fetch)(...a);
 const gis = () => window.__MOCK_GOOGLE || window.google;
 const APP_URL = location.origin + location.pathname;
-const APP_VERSION = "2026-11-01.7";
+const APP_VERSION = "2026-11-01.8";
 /* Mise à jour automatique : GitHub Pages garde la page en cache 10 min, on vérifie s'il existe une version plus récente */
 (async () => {
   try {
@@ -364,7 +366,8 @@ function syncApply(d){
   S.pins = (Array.isArray(d.pins) ? d.pins : []).filter(p => p && p.id && ACCTS[p.acct]).map(p => ({acct:p.acct, id:String(p.id), title:String(p.title || ""), owner:String(p.owner || "")}));
   save();
   syncApplying = false;
-  for (let i = 0; i < 4; i++) renderPane(i);
+  ACCT_KEYS.forEach(a => cache.delete(ck(a, "important")));
+  for (let i = 0; i < 4; i++) { renderPane(i); if (i < S.count && S.panes[i].path[0].id === "important") loadPane(i); }
 }
 /* Fusion réglage par réglage : la modification la plus récente gagne, sur un poste comme sur l'autre */
 function syncMerge(local, lts, remote, rts){
@@ -648,6 +651,24 @@ function fetchFolder(acct, id, opt){
   const have = cache.get(k);
   if (!opt.force && have && (!have.truncated || have.max >= max)) return Promise.resolve(have);
   if (inflight.has(k)) return inflight.get(k).then(() => fetchFolder(acct, id, opt));
+  if (id === "important") {
+    const p = (async () => {
+      const ids = Object.keys(S.marks), items = [];
+      const one = async fid => {
+        try {
+          const f = await api(acct, "GET", "files/" + encodeURIComponent(fid), {query:{fields:"id,name,mimeType,parents,owners(emailAddress),modifiedTime,createdTime,size,webViewLink,driveId,trashed", supportsAllDrives:true}});
+          if (!f.trashed) items.push(mapFile(f, acct));
+        } catch (e) { if (e.code === "needs_auth") throw e; }
+      };
+      for (let n = 0; n < ids.length; n += 6) await Promise.all(ids.slice(n, n + 6).map(one));
+      const entry = {items, truncated:false, max};
+      cache.set(k, entry);
+      return entry;
+    })();
+    inflight.set(k, p);
+    p.finally(() => inflight.delete(k)).catch(() => {});
+    return p;
+  }
   const p = (async () => {
     const items = [], seen = new Set(); let token = null;
     for (let i = 0; i < max; i++) {
@@ -908,7 +929,7 @@ function itemMenu(it, x, y){
       const on = !!S.marks[it.id];
       m.append(h("button", {class:"mi", onclick:() => {
         grp.forEach(g => { if (on) delete S.marks[g.id]; else S.marks[g.id] = 1; });
-        save(); done(); for (let i = 0; i < S.count; i++) renderBody(i);
+        save(); done(); ACCT_KEYS.forEach(a => cache.delete(ck(a, "important"))); for (let i = 0; i < S.count; i++) if (S.panes[i].path[0].id === "important") loadPane(i); for (let i = 0; i < S.count; i++) renderBody(i);
       }}, on ? "Retirer la marque « important »" : "Marquer comme important" + (grp.length > 1 ? " (" + grp.length + " éléments)" : "")));
     }
     m.append(h("button", {class:"mi", style:"color:var(--danger)", onclick:() => { done(); const pi = paneOfItem(it); const s = pi >= 0 ? sel[pi] : null; doTrash(s && s.has(it.id) && s.size > 1 ? [...s.values()] : [it]); }}, "Mettre à la corbeille"));
@@ -990,7 +1011,7 @@ function confirmDlg(text, okLabel){
 
 /* ===== Opérations ===== */
 function setBusy(text){ const b = $("#busy"); b.textContent = text || ""; b.classList.toggle("on", !!text); }
-function invalidate(acct, keys){ keys.forEach(k => k && cache.delete(ck(acct, k))); cache.delete(ck(acct, "shared")); cache.delete(ck(acct, "starred")); }
+function invalidate(acct, keys){ keys.forEach(k => k && cache.delete(ck(acct, k))); cache.delete(ck(acct, "shared")); cache.delete(ck(acct, "starred")); cache.delete(ck(acct, "important")); }
 function refreshAll(){ for (let i = 0; i < S.count; i++) { renderPane(i); loadPane(i); } save(); }
 function labelOf(items){ return items.length > 1 ? items.length + " éléments" : "« " + clean(items[0].title) + " »"; }
 function setUndo(b){ document.querySelectorAll(".toast.undo").forEach(t => t.remove()); undoBatch = b; $("#btnUndo").disabled = !b; }
@@ -1241,6 +1262,7 @@ function itemsOf(acct, id, p, applyFilter){
   let arr = e.items.slice();
   const f = applyFilter ? p.filter.trim().toLowerCase() : "";
   if (f) arr = arr.filter(x => (x.title || "").toLowerCase().includes(f));
+  if (applyFilter && p.impOnly && id !== "important") arr = arr.filter(x => S.marks[x.id]);
   if (p.sort === "custom") {
     const ord = S.order[ck(acct, id)] || [], pos = new Map(ord.map((x, n) => [x, n]));
     arr.sort((a, b) => {
@@ -1304,11 +1326,12 @@ function renderPane(i){
     [["name|asc","Nom A → Z"],["name|desc","Nom Z → A"],["modified|desc","Modifiés récemment"],["custom|asc","Ordre libre"]].map(([v, t]) =>
       h("option", {value:v, selected:(p.sort === "custom" ? "custom|asc" : p.sort + "|" + p.dir) === v}, t)));
   const filt = h("input", {type:"search", placeholder:"Filtrer…", value:p.filter, title:"Filtrer le dossier affiché", oninput:e => { p.filter = e.target.value; renderBody(i); }});
+  const impBtn = h("button", {class:"ibtn impbtn" + (p.impOnly ? " on" : ""), title:p.impOnly ? "Afficher tous les éléments" : "N'afficher que les éléments marqués comme importants", onclick:() => { p.impOnly = !p.impOnly; renderPane(i); }}, "!");
   const refresh = h("button", {class:"ibtn", title:"Rafraîchir", html:ICON.refresh, onclick:() => srch[i].open && srch[i].q ? runSearch(i) : loadPane(i, true)});
   const z = srch[i];
   const loupe = h("button", {class:"ibtn" + (z.open ? " on" : ""), title:"Rechercher dans tout le Drive " + ACCTS[acct].label, html:ICON.search, onclick:() => toggleSearch(i)});
   const closeBtn = S.count > 1 ? h("button", {class:"ibtn pclose", title:"Fermer ce cadran", onclick:() => closePane(i)}, "×") : null;
-  el.append(h("div", {class:"pane-head"}, chip, rootSel, home, up, crumbs, loupe, filt, sortSel, modes, refresh, closeBtn));
+  el.append(h("div", {class:"pane-head"}, chip, rootSel, home, up, crumbs, loupe, filt, impBtn, sortSel, modes, refresh, closeBtn));
   if (z.open) {
     const inp = h("input", {type:"search", value:z.q, placeholder:"Rechercher dans tout le Drive " + ACCTS[acct].label + "…",
       oninput:e => { z.q = e.target.value; queueSearch(i); },
@@ -1355,7 +1378,7 @@ function renderBody(i){
       makeDropTarget(col, tgt(c, p.path.slice(0, k + 1)), "drop-on");
       const items = itemsOf(acct, c.id, p, last);
       if (items == null) col.append(paneMsg(i));
-      else if (!items.length) col.append(msgEl(last && p.filter ? "Aucun résultat" : "Dossier vide"));
+      else if (!items.length) col.append(msgEl(last && p.impOnly ? "Aucun élément important" : last && p.filter ? "Aucun résultat" : "Dossier vide"));
       else items.forEach(it => {
         const next = p.path[k + 1];
         const on = (next && next.id === it.id) || (last && p.preview && p.preview.id === it.id);
@@ -1383,7 +1406,7 @@ function renderBody(i){
       const e = cache.get(ck(acct, cur.id)); count = items.length; total = e.items.length; trunc = e.truncated;
       const ctx = {containerPath:p.path, level:p.path.length - 1, list:items};
       items.forEach(it => { if (isFolder(it)) folderIds.push(it.id); });
-      const empty = () => msgEl(p.filter ? "Aucun résultat" : "Dossier vide - déposez des éléments ici");
+      const empty = () => msgEl(p.impOnly ? "Aucun élément marqué comme important dans ce dossier" : p.filter ? "Aucun résultat" : "Dossier vide - déposez des éléments ici");
       if (p.mode === "list") {
         body.classList.add("list");
         const sortBtn = (k, label) => h("button", {class:p.sort === k ? "on" : "", onclick:ev => { ev.stopPropagation(); if (p.sort === k) p.dir = p.dir === "asc" ? "desc" : "asc"; else { p.sort = k; p.dir = k === "modified" ? "desc" : "asc"; } save(); renderBody(i); }},

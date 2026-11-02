@@ -244,7 +244,7 @@ const PAL = {
 const doFetch = (...a) => (window.__MOCK_FETCH || fetch)(...a);
 const gis = () => window.__MOCK_GOOGLE || window.google;
 const APP_URL = location.origin + location.pathname;
-const APP_VERSION = "2026-11-02.2";
+const APP_VERSION = "2026-11-02.3";
 /* Mise à jour automatique : GitHub Pages garde la page en cache 10 min, on vérifie s'il existe une version plus récente */
 (async () => {
   try {
@@ -945,8 +945,10 @@ function itemMenu(it, x, y){
   popMenu(x, y, (m, done) => {
     m.append(h("div", {class:"mt"}, clean(it.title)), h("div", {class:"ms"}, kind(it)[1] + (it.owner ? " · " + it.owner : "")));
     if (it.viewUrl) m.append(h("a", {class:"mi", href:it.viewUrl, target:"_blank", rel:"noopener", onclick:() => done()}, "Ouvrir dans Drive"));
-    m.append(h("button", {class:"mi", onclick:() => { done(); doRename(it); }}, "Renommer…"));
-    if (isFolder(it)) m.append(h("button", {class:"mi", onclick:() => { done(); doNewFolder({acct:it.acct, id:it.id, title:it.title}); }}, "Nouveau dossier dedans…"));
+    m.append(h("button", {class:"mi", onclick:() => { done(); doRename(it); }}, "Renommer"));
+    if (isFolder(it)) m.append(h("button", {class:"mi", onclick:() => { done(); doNewFolder({acct:it.acct, id:it.id, title:it.title}); }}, "Nouveau dossier dedans"));
+    const par = parentEntry(it);
+    if (par) m.append(h("button", {class:"mi", onclick:() => { done(); doNewFolder(par); }}, "Nouveau dossier à côté"));
     {
       const pi0 = paneOfItem(it), grp = (pi0 >= 0 && sel[pi0].has(it.id) && sel[pi0].size > 1) ? [...sel[pi0].values()] : [it];
       const on = !!S.marks[it.id];
@@ -1008,6 +1010,12 @@ async function doRename(it){
   refreshAll();
 }
 /* Création d'un dossier dans le dossier affiché (ou dans un dossier donné) */
+function parentEntry(it){
+  if (!it.parentId) return null;
+  const k = keyOf(it.acct, it.parentId);
+  for (const p of S.panes) for (const c of p.path) if (c.acct === it.acct && c.id === k) return {acct:it.acct, id:k, title:c.title};
+  return {acct:it.acct, id:k, title:k === "root" ? "Mon Drive" : (nameCache.get(ck(it.acct, it.parentId)) || "dossier parent")};
+}
 function canCreateIn(c){ return c && !isVirt(c.id) && connected(c.acct); }
 async function doNewFolder(parent, i){
   if (!canCreateIn(parent)) { toast("Choisissez d'abord un dossier de Mon Drive ou d'un Drive partagé : on ne peut pas créer de dossier ici.", {err:true}); return; }
@@ -1375,7 +1383,7 @@ function renderPane(i){
   const z = srch[i];
   const loupe = h("button", {class:"ibtn" + (z.open ? " on" : ""), title:"Rechercher dans tout le Drive " + ACCTS[acct].label, html:ICON.search, onclick:() => toggleSearch(i)});
   const closeBtn = S.count > 1 ? h("button", {class:"ibtn pclose", title:"Fermer ce cadran", onclick:() => closePane(i)}, "×") : null;
-  el.append(h("div", {class:"pane-head"}, chip, rootSel, home, up, crumbs, loupe, filt, impBtn, sortSel, modes, newBtn, refresh, closeBtn));
+  el.append(h("div", {class:"pane-head"}, chip, rootSel, home, up, crumbs, loupe, filt, newBtn, impBtn, sortSel, modes, refresh, closeBtn));
   if (z.open) {
     const inp = h("input", {type:"search", value:z.q, placeholder:"Rechercher dans tout le Drive " + ACCTS[acct].label + "…",
       oninput:e => { z.q = e.target.value; queueSearch(i); },

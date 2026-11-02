@@ -244,7 +244,7 @@ const PAL = {
 const doFetch = (...a) => (window.__MOCK_FETCH || fetch)(...a);
 const gis = () => window.__MOCK_GOOGLE || window.google;
 const APP_URL = location.origin + location.pathname;
-const APP_VERSION = "2026-11-02.3";
+const APP_VERSION = "2026-11-02.4";
 /* Mise à jour automatique : GitHub Pages garde la page en cache 10 min, on vérifie s'il existe une version plus récente */
 (async () => {
   try {
@@ -802,8 +802,15 @@ function canDrop(target, copy){
   }
   return any;
 }
+const isExtDrag = e => !drag && e.dataTransfer && [...(e.dataTransfer.types || [])].includes("Files");
 function makeDropTarget(el, getTarget, cls){
   el.addEventListener("dragover", e => {
+    if (isExtDrag(e)) {
+      e.stopPropagation();
+      const t = getTarget();
+      if (canCreateIn(t)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; setHL(el, cls); } else setHL(null);
+      return;
+    }
     if (!drag) return;
     e.stopPropagation();
     const t = getTarget();
@@ -811,6 +818,12 @@ function makeDropTarget(el, getTarget, cls){
     else setHL(null);
   });
   el.addEventListener("drop", e => {
+    if (isExtDrag(e)) {
+      e.preventDefault(); e.stopPropagation(); setHL(null);
+      const t = getTarget();
+      if (canCreateIn(t)) uploadDrop(e.dataTransfer, t);
+      return;
+    }
     if (!drag) return;
     e.preventDefault(); e.stopPropagation();
     const t = getTarget(), items = drag.items, ev = {x:e.clientX, y:e.clientY, alt:e.altKey};
@@ -819,7 +832,80 @@ function makeDropTarget(el, getTarget, cls){
   });
 }
 function endDrag(){ setHL(null); drag = null; }
-document.addEventListener("dragover", () => { if (drag) setHL(null); });
+document.addEventListener("dragover", e => { if (drag) setHL(null); else if (isExtDrag(e)) { e.preventDefault(); e.dataTransfer.dropEffect = "none"; setHL(null); } });
+document.addEventListener("drop", e => { if (isExtDrag(e)) { e.preventDefault(); setHL(null); } });
+document.addEventListener("dragleave", e => { if (!drag && !e.relatedTarget) setHL(null); });
+
+/* ===== Dépôt de fichiers venant du Finder, de la messagerie ou du bureau ===== */
+function readEntries(dirEntry){
+  return new Promise(res => {
+    const r = dirEntry.createReader(), all = [];
+    const step = () => r.readEntries(list => { if (!list.length) return res(all); all.push(...list); step(); }, () => res(all));
+    step();
+  });
+}
+const entryFile = en => new Promise((res, rej) => en.file(res, rej));
+async function collectDrop(dt){
+  /* Renvoie une arborescence : [{file}|{dir:name, children:[...]}] ; les dossiers du Finder sont recréés dans Drive */
+  const out = [], entries = [];
+  for (const it of [...(dt.items || [])]) { if (it.kind !== "file") continue; const en = it.webkitGetAsEntry && it.webkitGetAsEntry(); entries.push(en ? {en} : {file:it.getAsFile()}); }
+  if (!entries.length) for (const f of [...(dt.files || [])]) entries.push({file:f});
+  const walk = async en => {
+    if (en.isDirectory) { const kids = []; for (const c of await readEntries(en)) { const k = await walk(c); if (k) kids.push(k); } return {dir:en.name, children:kids}; }
+    try { const f = await entryFile(en); return /^\.(DS_Store|localized)$/.test(f.name) ? null : {file:f}; } catch (e) { return null; }
+  };
+  for (const x of entries) { if (x.en) { const n = await walk(x.en); if (n) out.push(n); } else if (x.file) out.push({file:x.file}); }
+  return out;
+}
+const countFiles = nodes => nodes.reduce((n, x) => n + (x.file ? 1 : countFiles(x.children)), 0);
+async function uploadFile(acct, pid, file){
+  const a = ACCTS[acct];
+  if (!a.token || a.exp < Date.now()) { needAuth(acct); const e = new Error("auth"); e.code = "needs_auth"; e.acct = acct; throw e; }
+  const meta = {name:file.name, parents:[pid]};
+  const r = await doFetch(UPLOAD + "?uploadType=resumable&supportsAllDrives=true&fields=id,name", {method:"POST", headers:{Authorization:"Bearer " + a.token, "Content-Type":"application/json; charset=UTF-8", "X-Upload-Content-Type":file.type || "application/octet-stream", "X-Upload-Content-Length":String(file.size)}, body:JSON.stringify(meta)});
+  if (!r.ok) { const j = await r.json().catch(() => ({})); const e = new Error((j.error && j.error.message) || ("HTTP " + r.status)); e.status = r.status; throw e; }
+  const loc = r.headers.get("Location");
+  if (!loc) {   /* en-tête non lisible : envoi en une seule requête */
+    const bnd = "dcup" + Math.random().toString(36).slice(2);
+    const body = new Blob(["--" + bnd + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" + JSON.stringify(meta) + "\r\n--" + bnd + "\r\nContent-Type: " + (file.type || "application/octet-stream") + "\r\n\r\n", file, "\r\n--" + bnd + "--"]);
+    const m = await doFetch(UPLOAD + "?uploadType=multipart&supportsAllDrives=true&fields=id,name", {method:"POST", headers:{Authorization:"Bearer " + a.token, "Content-Type":"multipart/related; boundary=" + bnd}, body});
+    const jm = await m.json().catch(() => ({}));
+    if (!m.ok) { const e = new Error((jm.error && jm.error.message) || ("HTTP " + m.status)); e.status = m.status; throw e; }
+    return jm;
+  }
+  const u = await doFetch(loc, {method:"PUT", headers:{"Content-Type":file.type || "application/octet-stream"}, body:file});
+  const j = await u.json().catch(() => ({}));
+  if (!u.ok) { const e = new Error((j.error && j.error.message) || ("HTTP " + u.status)); e.status = u.status; throw e; }
+  return j;
+}
+async function uploadDrop(dt, target){
+  const nodes = await collectDrop(dt);
+  if (!nodes.length) { toast("Rien à déposer : faites glisser des fichiers (pour un courriel, glissez la pièce jointe ou le message lui-même).", {err:true, ms:8000}); return; }
+  const acct = target.acct, root = target.id.startsWith("drive:") ? target.id.slice(6) : target.id;
+  const total = countFiles(nodes); let done = 0;
+  const ops = [], errs = [];
+  const run = async (list, pid) => {
+    for (const n of list) {
+      try {
+        if (n.file) {
+          setBusy("Envoi vers Drive " + (done + 1) + "/" + total + " : " + n.file.name);
+          const f = await uploadFile(acct, pid, n.file); done++;
+          if (pid === root) ops.push({t:"created", acct, id:f.id});
+        } else {
+          const f = await api(acct, "POST", "files", {query:{supportsAllDrives:true, fields:"id"}, body:{name:n.dir, mimeType:"application/vnd.google-apps.folder", parents:[pid]}});
+          if (pid === root) ops.push({t:"created", acct, id:f.id});
+          await run(n.children, f.id);
+        }
+      } catch (e) { if (n.file) done++; errs.push([n.file ? n.file.name : n.dir, e]); if (e.code === "needs_auth") break; }
+    }
+  };
+  await run(nodes, root);
+  setBusy("");
+  invalidate(acct, new Set([target.id, root]));
+  if (ops.length) { setUndo({ops, restorePaths:[], keys:[]}); toast((total - errs.length) + " fichier" + (total - errs.length > 1 ? "s" : "") + " déposé" + (total - errs.length > 1 ? "s" : "") + " dans « " + clean(target.title) + " » (compte " + ACCTS[acct].label + ").", {undo:true}); }
+  errs.slice(0, 4).forEach(([nm, e]) => toast("« " + nm + " » n'a pas pu être envoyé. " + errMsg(e), {err:true, ms:9000}));
+  refreshAll();
+}
 document.addEventListener("dragend", endDrag);
 
 async function onDrop(items, target, ev){

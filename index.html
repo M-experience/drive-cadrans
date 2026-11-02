@@ -55,6 +55,7 @@ main[data-layout="grid"][data-n="3"] .pane:nth-child(3){grid-column:span 2}
 .sep{color:var(--muted)}
 .ibtn{border:1px solid rgba(255,255,255,.85);background:rgba(255,255,255,.5);border-radius:9px;padding:4px 7px;cursor:pointer;display:inline-flex;align-items:center;color:var(--text)}
 .ibtn:hover{background:#fff}
+.ibtn.newdir{gap:5px;font:600 12px/1 inherit;color:var(--accent,#2f6fd6);background:#fff;border-color:var(--line,#dfe6ef);padding:4px 9px}
 .ibtn:disabled{opacity:.35;cursor:default;background:transparent}
 select,input[type=search]{font:inherit;font-size:13px;color:var(--text);background:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.9);border-radius:9px;padding:4px 7px;max-width:190px}
 input[type=search]{width:110px}
@@ -243,7 +244,7 @@ const PAL = {
 const doFetch = (...a) => (window.__MOCK_FETCH || fetch)(...a);
 const gis = () => window.__MOCK_GOOGLE || window.google;
 const APP_URL = location.origin + location.pathname;
-const APP_VERSION = "2026-11-02.1";
+const APP_VERSION = "2026-11-02.2";
 /* Mise à jour automatique : GitHub Pages garde la page en cache 10 min, on vérifie s'il existe une version plus récente */
 (async () => {
   try {
@@ -1369,7 +1370,7 @@ function renderPane(i){
   const impBtn = h("button", {class:"ibtn impbtn" + (p.impOnly ? " on" : ""), title:p.impOnly ? "Afficher tous les éléments" : "N'afficher que les éléments importants, et les dossiers qui y mènent", onclick:() => { p.impOnly = !p.impOnly; renderPane(i); if (p.impOnly) ensureMarkAnc(acct); }}, "!");
   if (p.impOnly) setTimeout(() => ensureMarkAnc(acct), 0);
   const curDir = p.path[p.path.length - 1];
-  const newBtn = h("button", {class:"ibtn", title:canCreateIn(curDir) ? "Nouveau dossier dans « " + clean(curDir.title) + " »" : "Ouvrez un dossier de Mon Drive pour y créer un dossier", disabled:!canCreateIn(curDir), html:ICON.newdir, onclick:() => doNewFolder(curDir, i)});
+  const newBtn = h("button", {class:"ibtn newdir", title:canCreateIn(curDir) ? "Nouveau dossier dans « " + clean(curDir.title) + " »" : "Ouvrez un dossier de Mon Drive pour y créer un dossier", disabled:!canCreateIn(curDir), onclick:() => doNewFolder(curDir, i)}, h("span", {html:ICON.newdir, style:"display:inline-flex"}), "Nouveau dossier");
   const refresh = h("button", {class:"ibtn", title:"Rafraîchir", html:ICON.refresh, onclick:() => srch[i].open && srch[i].q ? runSearch(i) : loadPane(i, true)});
   const z = srch[i];
   const loupe = h("button", {class:"ibtn" + (z.open ? " on" : ""), title:"Rechercher dans tout le Drive " + ACCTS[acct].label, html:ICON.search, onclick:() => toggleSearch(i)});

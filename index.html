@@ -178,6 +178,15 @@ a.btn{display:inline-block;padding:6px 13px;border-radius:999px;background:var(-
 .modal-bg{position:fixed;inset:0;background:rgba(20,30,45,.3);display:flex;align-items:center;justify-content:center;z-index:30}
 .modal{background:#fff;border-radius:16px;padding:20px;max-width:430px;box-shadow:0 14px 40px rgba(0,0,0,.25)}
 .modal p{margin:0 0 16px}
+.mtree{max-height:55vh;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:4px;background:#fafcff}
+.mrow{display:flex;align-items:center;gap:7px;padding:5px 8px;border-radius:8px;cursor:pointer;user-select:none;font-size:13px}
+.mrow:hover{background:#eef3fa}
+.mrow.on{background:var(--accent);color:#fff}
+.mrow .ico{width:18px;height:18px}
+.mname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mchev{width:14px;text-align:center;color:#8a94a6;transition:transform .12s;font-weight:700}
+.mchev.open{transform:rotate(90deg)}
+.mrow.on .mchev{color:#fff}
 .modal .acts{display:flex;justify-content:flex-end;gap:8px}
 .modal .acts button{padding:6px 14px;border-radius:999px;border:1px solid var(--line);background:transparent;cursor:pointer;font-weight:600}
 .modal .acts button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
@@ -244,7 +253,7 @@ const PAL = {
 const doFetch = (...a) => (window.__MOCK_FETCH || fetch)(...a);
 const gis = () => window.__MOCK_GOOGLE || window.google;
 const APP_URL = location.origin + location.pathname;
-const APP_VERSION = "2026-11-02.4";
+const APP_VERSION = "2026-11-03.1";
 /* Mise à jour automatique : GitHub Pages garde la page en cache 10 min, on vérifie s'il existe une version plus récente */
 (async () => {
   try {
@@ -1032,6 +1041,8 @@ function itemMenu(it, x, y){
     m.append(h("div", {class:"mt"}, clean(it.title)), h("div", {class:"ms"}, kind(it)[1] + (it.owner ? " · " + it.owner : "")));
     if (it.viewUrl) m.append(h("a", {class:"mi", href:it.viewUrl, target:"_blank", rel:"noopener", onclick:() => done()}, "Ouvrir dans Drive"));
     m.append(h("button", {class:"mi", onclick:() => { done(); doRename(it); }}, "Renommer"));
+    { const pi1 = paneOfItem(it), grp1 = (pi1 >= 0 && sel[pi1].has(it.id) && sel[pi1].size > 1) ? [...sel[pi1].values()] : [it];
+      m.append(h("button", {class:"mi", onclick:() => { done(); movePicker(grp1); }}, "Déplacer" + (grp1.length > 1 ? " (" + grp1.length + " éléments)" : ""))); }
     if (isFolder(it)) m.append(h("button", {class:"mi", onclick:() => { done(); doNewFolder({acct:it.acct, id:it.id, title:it.title}); }}, "Nouveau dossier dedans"));
     const par = parentEntry(it);
     if (par) m.append(h("button", {class:"mi", onclick:() => { done(); doNewFolder(par); }}, "Nouveau dossier à côté"));
@@ -1096,6 +1107,68 @@ async function doRename(it){
   refreshAll();
 }
 /* Création d'un dossier dans le dossier affiché (ou dans un dossier donné) */
+/* Fenêtre « Déplacer » : arborescence des dossiers de tous les comptes connectés */
+function movePicker(items){
+  const moving = new Set(items.map(x => x.id)), src = items[0].acct;
+  const pi = paneOfItem(items[0]), openIds = new Set(pi >= 0 ? S.panes[pi].path.map(c => c.acct + ":" + c.id) : []);
+  let chosen = null, chosenRow = null;
+  const tree = h("div", {class:"mtree"});
+  const okBtn = h("button", {class:"primary", disabled:true}, "Déplacer ici");
+  const info = h("div", {class:"ms", style:"min-height:18px;margin:8px 0 12px"}, "Choisissez le dossier de destination.");
+  const close = () => bg.remove();
+  const node = (entry, depth, parentEl) => {
+    const wrap = h("div");
+    const kids = h("div", {style:"display:none"});
+    const chev = h("span", {class:"mchev"}, "›");
+    const row = h("div", {class:"mrow", style:"padding-left:" + (6 + depth * 16) + "px", title:clean(entry.title)}, chev, h("span", {class:"ico", html:depth === 0 ? ICON.home : folderSvg(entry.id, false)}), h("span", {class:"mname"}, clean(entry.title)), depth === 0 ? h("span", {class:"tag" + (entry.acct === "edm" ? " edm" : ""), style:entry.acct === "perso" ? "background:var(--perso);color:#fff" : ""}, ACCTS[entry.acct].label.toUpperCase()) : null);
+    let loaded = false, open = false;
+    const toggle = async force => {
+      open = force === undefined ? !open : force;
+      kids.style.display = open ? "" : "none"; chev.classList.toggle("open", open);
+      if (open && !loaded) {
+        loaded = true; kids.append(h("div", {class:"ms", style:"padding-left:" + (24 + depth * 16) + "px"}, "Chargement…"));
+        try {
+          const e = await fetchFolder(entry.acct, entry.id);
+          kids.textContent = "";
+          const subs = e.items.filter(x => isFolder(x) && !moving.has(x.id)).sort((a, b) => coll.compare(a.title || "", b.title || ""));
+          if (!subs.length) { kids.append(h("div", {class:"ms", style:"padding-left:" + (24 + depth * 16) + "px"}, "Aucun sous-dossier")); chev.style.visibility = "hidden"; }
+          for (const f of subs) node({acct:f.acct, id:f.id, title:f.title, owner:f.owner, path:[...entry.path, {acct:f.acct, id:f.id, title:f.title, owner:f.owner}]}, depth + 1, kids);
+        } catch (err) { kids.textContent = ""; kids.append(h("div", {class:"ms", style:"color:var(--danger);padding-left:" + (24 + depth * 16) + "px"}, errMsg(err))); }
+      }
+    };
+    chev.addEventListener("click", e => { e.stopPropagation(); toggle(); });
+    row.addEventListener("click", () => {
+      if (chosenRow) chosenRow.classList.remove("on");
+      chosen = entry; chosenRow = row; row.classList.add("on");
+      const here = items.every(it => keyOf(it.acct, it.parentId) === entry.id || destOf(entry) === it.parentId);
+      okBtn.disabled = here;
+      info.textContent = here ? "Déjà dans ce dossier." : (entry.acct !== src ? "Autre compte (" + ACCTS[entry.acct].label + ") : vous choisirez entre copier et déplacer." : "Destination : " + entry.path.map(c => clean(c.title)).join(" › "));
+    });
+    row.addEventListener("dblclick", () => toggle());
+    wrap.append(row, kids); parentEl.append(wrap);
+    if (depth === 0 && entry.acct === src || openIds.has(entry.acct + ":" + entry.id)) toggle(true);
+  };
+  for (const a of ACCT_KEYS) {
+    if (!connected(a)) continue;
+    const r = rootEntry(a, "root"); node(Object.assign(r, {path:[r]}), 0, tree);
+    for (const d of (ACCTS[a].drives || [])) { const e = rootEntry(a, "drive:" + d.id, d.name); node(Object.assign(e, {path:[e]}), 0, tree); }
+  }
+  okBtn.addEventListener("click", async () => {
+    if (!chosen) return;
+    close();
+    if (chosen.acct === src) doMove(items, chosen);
+    else { const op = await dropMenu(items, chosen, innerWidth / 2 - 150, innerHeight / 3); if (op === "move") doTransfer(items, chosen, true); else if (op === "copy") doTransfer(items, chosen, false); }
+  });
+  const newHere = h("button", {onclick:async () => { if (!chosen) { info.textContent = "Choisissez d'abord le dossier dans lequel créer le nouveau dossier."; return; } close(); await doNewFolder(chosen); movePicker(items); }}, "Nouveau dossier");
+  const bg = h("div", {class:"modal-bg", onclick:e => { if (e.target === bg) close(); }},
+    h("div", {class:"modal", style:"width:520px;max-width:92vw"},
+      h("p", {style:"margin:0 0 10px;font-weight:700"}, "Déplacer " + labelOf(items)),
+      tree, info,
+      h("div", {class:"acts"}, newHere, h("span", {style:"flex:1"}), h("button", {onclick:close}, "Annuler"), okBtn)));
+  const key = e => { if (e.key === "Escape") { close(); document.removeEventListener("keydown", key, true); } };
+  document.addEventListener("keydown", key, true);
+  document.body.append(bg);
+}
 function parentEntry(it){
   if (!it.parentId) return null;
   const k = keyOf(it.acct, it.parentId);

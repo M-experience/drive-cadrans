@@ -178,6 +178,7 @@ a.btn{display:inline-block;padding:6px 13px;border-radius:999px;background:var(-
 .modal-bg{position:fixed;inset:0;background:rgba(20,30,45,.3);display:flex;align-items:center;justify-content:center;z-index:30}
 .modal{background:#fff;border-radius:16px;padding:20px;max-width:430px;box-shadow:0 14px 40px rgba(0,0,0,.25)}
 .modal p{margin:0 0 16px}
+.pane.flash{box-shadow:0 0 0 3px var(--accent)}
 .mtree{max-height:55vh;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:4px;background:#fafcff}
 .mrow{display:flex;align-items:center;gap:7px;padding:5px 8px;border-radius:8px;cursor:pointer;user-select:none;font-size:13px}
 .mrow:hover{background:#eef3fa}
@@ -253,7 +254,7 @@ const PAL = {
 const doFetch = (...a) => (window.__MOCK_FETCH || fetch)(...a);
 const gis = () => window.__MOCK_GOOGLE || window.google;
 const APP_URL = location.origin + location.pathname;
-const APP_VERSION = "2026-11-03.1";
+const APP_VERSION = "2026-11-04.1";
 /* Mise à jour automatique : GitHub Pages garde la page en cache 10 min, on vérifie s'il existe une version plus récente */
 (async () => {
   try {
@@ -911,7 +912,7 @@ async function uploadDrop(dt, target){
   await run(nodes, root);
   setBusy("");
   invalidate(acct, new Set([target.id, root]));
-  if (ops.length) { setUndo({ops, restorePaths:[], keys:[]}); toast((total - errs.length) + " fichier" + (total - errs.length > 1 ? "s" : "") + " déposé" + (total - errs.length > 1 ? "s" : "") + " dans « " + clean(target.title) + " » (compte " + ACCTS[acct].label + ").", {undo:true}); }
+  if (ops.length) { setUndo({ops, restorePaths:[], keys:[]}); toast((total - errs.length) + " fichier" + (total - errs.length > 1 ? "s" : "") + " déposé" + (total - errs.length > 1 ? "s" : "") + " dans « " + clean(target.title) + " » (compte " + ACCTS[acct].label + ").", {undo:true, acts:destActs(target), ms:14000}); }
   errs.slice(0, 4).forEach(([nm, e]) => toast("« " + nm + " » n'a pas pu être envoyé. " + errMsg(e), {err:true, ms:9000}));
   refreshAll();
 }
@@ -1251,7 +1252,7 @@ async function doMove(items, target){
   invalidate(acct, keys); sel.forEach(s => s.clear());
   if (ops.length) {
     setUndo({ops, restorePaths, keys:[[acct, [...keys]]]});
-    toast(labelOf(ops) + " déplacé" + (ops.length > 1 ? "s" : "") + " vers « " + clean(target.title) + " ».", {undo:true});
+    toast(labelOf(ops) + " déplacé" + (ops.length > 1 ? "s" : "") + " vers « " + clean(target.title) + " ».", {undo:true, acts:destActs(target), ms:14000});
   }
   errs.forEach(([it, e]) => toast("« " + clean(it.title) + " » n'a pas été déplacé. " + errMsg(e), {err:true, ms:9000}));
   refreshAll();
@@ -1311,7 +1312,7 @@ async function doTransfer(items, target, isMove){
   const done = ops.filter(o => o.t === "trash");
   if (done.length) {
     setUndo({ops, restorePaths:[], keys:[]});
-    toast(labelOf(done) + (isMove ? " transféré" : " copié") + (done.length > 1 ? "s" : "") + " vers « " + clean(target.title) + " » (compte " + ACCTS[dst].label + ")" + (n > done.length ? ", " + n + " éléments au total" : "") + ".", {undo:true});
+    toast(labelOf(done) + (isMove ? " transféré" : " copié") + (done.length > 1 ? "s" : "") + " vers « " + clean(target.title) + " » (compte " + ACCTS[dst].label + ")" + (n > done.length ? ", " + n + " éléments au total" : "") + ".", {undo:true, acts:destActs(target), ms:14000});
   }
   if (kept.length) toast("Copié, mais l'original de " + labelOf(kept) + " est resté en place (copie incomplète ou mise à la corbeille refusée : seul le propriétaire peut le faire).", {err:true, ms:11000});
   errs.slice(0, 4).forEach(([it, e]) => toast("« " + clean(it.title) + " » : " + errMsg(e), {err:true, ms:9000}));
@@ -1372,11 +1373,33 @@ async function undo(){
 function toast(msg, o){
   o = o || {};
   const t = h("div", {class:"toast" + (o.err ? " err" : "") + (o.undo ? " undo" : "")}, h("span", {}, msg),
+    ...(o.acts || []).map(([label, fn]) => h("button", {onclick:() => { t.remove(); fn(); }}, label)),
     o.undo ? h("button", {onclick:() => { t.remove(); undo(); }}, "Annuler") : null,
     h("button", {class:"x", title:"Fermer", onclick:() => t.remove()}, "×"));
   $("#toasts").append(t);
   setTimeout(() => t.remove(), o.ms || 8000);
 }
+
+/* Après un classement : ouvrir le dossier de destination dans un cadran ou dans Google Drive */
+function driveFolderUrl(t){
+  const a = ACCTS[t.acct], q = a.email ? "?authuser=" + encodeURIComponent(a.email) : "";
+  if (t.id === "root") return "https://drive.google.com/drive/my-drive" + q;
+  return "https://drive.google.com/drive/folders/" + encodeURIComponent(t.id.startsWith("drive:") ? t.id.slice(6) : t.id) + q;
+}
+function openFolderInPane(t){
+  const path = (t.path && t.path.length) ? t.path.map(c => ({acct:c.acct, id:c.id, title:c.title, owner:c.owner || ""})) : [rootEntry(t.acct, "root"), {acct:t.acct, id:t.id, title:t.title, owner:t.owner || ""}];
+  let i = -1, best = -1;
+  for (let k = 0; k < S.count; k++) {
+    const pp = S.panes[k].path; if (pp[0].acct !== t.acct) continue;
+    let n = 0; while (n < pp.length && n < path.length && pp[n].id === path[n].id) n++;
+    if (n > best) { best = n; i = k; }
+  }
+  if (i < 0) i = 0;
+  const p = S.panes[i]; p.path = path; p.preview = null; srch[i].open = false; sel[i].clear();
+  renderPane(i); loadPane(i); save();
+  const el = document.querySelectorAll(".pane")[i]; if (el) { el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 900); }
+}
+const destActs = t => [["Ouvrir le dossier", () => openFolderInPane(t)], ["Dans Drive", () => window.open(driveFolderUrl(t), "_blank", "noopener")]];
 
 /* ===== Navigation ===== */
 const entryOf = it => ({acct:it.acct, id:it.id, title:it.title, owner:it.owner});

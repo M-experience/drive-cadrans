@@ -254,7 +254,7 @@ const PAL = {
 const doFetch = (...a) => (window.__MOCK_FETCH || fetch)(...a);
 const gis = () => window.__MOCK_GOOGLE || window.google;
 const APP_URL = location.origin + location.pathname;
-const APP_VERSION = "2026-11-04.1";
+const APP_VERSION = "2026-11-10.1";
 /* Mise à jour automatique : GitHub Pages garde la page en cache 10 min, on vérifie s'il existe une version plus récente */
 (async () => {
   try {
@@ -290,6 +290,7 @@ let undoBatch = null, drag = null, hl = null;
 let pendingFolder = new URLSearchParams(location.search).get("folder");
 
 const ICON = {
+  ext:'<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2.5h4v4M13.5 2.5 7.5 8.5"/><path d="M12 9.5v3a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3"/></svg>',
   newdir:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.8 4.2c0-.7.5-1.2 1.2-1.2h3l1.4 1.6H13c.7 0 1.2.5 1.2 1.2v6.4c0 .7-.5 1.2-1.2 1.2H3c-.7 0-1.2-.5-1.2-1.2z"/><path d="M8 7v4M6 9h4"/></svg>',
   list:'<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 4h9M5 8h9M5 12h9"/><circle cx="2" cy="4" r=".7" fill="currentColor"/><circle cx="2" cy="8" r=".7" fill="currentColor"/><circle cx="2" cy="12" r=".7" fill="currentColor"/></svg>',
   grid:'<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" rx="1.3"/><rect x="9" y="2" width="5" height="5" rx="1.3"/><rect x="2" y="9" width="5" height="5" rx="1.3"/><rect x="9" y="9" width="5" height="5" rx="1.3"/></svg>',
@@ -1384,6 +1385,8 @@ function toast(msg, o){
 function driveFolderUrl(t){
   const a = ACCTS[t.acct], q = a.email ? "?authuser=" + encodeURIComponent(a.email) : "";
   if (t.id === "root") return "https://drive.google.com/drive/my-drive" + q;
+  if (t.id === "shared") return "https://drive.google.com/drive/shared-with-me" + q;
+  if (t.id === "starred") return "https://drive.google.com/drive/starred" + q;
   return "https://drive.google.com/drive/folders/" + encodeURIComponent(t.id.startsWith("drive:") ? t.id.slice(6) : t.id) + q;
 }
 function openFolderInPane(t){
@@ -1560,12 +1563,13 @@ function renderPane(i){
   const impBtn = h("button", {class:"ibtn impbtn" + (p.impOnly ? " on" : ""), title:p.impOnly ? "Afficher tous les éléments" : "N'afficher que les éléments importants, et les dossiers qui y mènent", onclick:() => { p.impOnly = !p.impOnly; renderPane(i); if (p.impOnly) ensureMarkAnc(acct); }}, "!");
   if (p.impOnly) setTimeout(() => ensureMarkAnc(acct), 0);
   const curDir = p.path[p.path.length - 1];
+  const extBtn = h("button", {class:"ibtn", title:curDir.id === "important" ? "Pas d'équivalent dans Google Drive" : "Ouvrir « " + clean(curDir.title) + " » dans Google Drive", disabled:curDir.id === "important", html:ICON.ext, onclick:() => window.open(driveFolderUrl(curDir), "_blank", "noopener")});
   const newBtn = h("button", {class:"ibtn newdir", title:canCreateIn(curDir) ? "Nouveau dossier dans « " + clean(curDir.title) + " »" : "Ouvrez un dossier de Mon Drive pour y créer un dossier", disabled:!canCreateIn(curDir), onclick:() => doNewFolder(curDir, i)}, h("span", {html:ICON.newdir, style:"display:inline-flex"}), "Nouveau dossier");
   const refresh = h("button", {class:"ibtn", title:"Rafraîchir", html:ICON.refresh, onclick:() => srch[i].open && srch[i].q ? runSearch(i) : loadPane(i, true)});
   const z = srch[i];
   const loupe = h("button", {class:"ibtn" + (z.open ? " on" : ""), title:"Rechercher dans tout le Drive " + ACCTS[acct].label, html:ICON.search, onclick:() => toggleSearch(i)});
   const closeBtn = S.count > 1 ? h("button", {class:"ibtn pclose", title:"Fermer ce cadran", onclick:() => closePane(i)}, "×") : null;
-  el.append(h("div", {class:"pane-head"}, chip, rootSel, home, up, crumbs, loupe, filt, newBtn, impBtn, sortSel, modes, refresh, closeBtn));
+  el.append(h("div", {class:"pane-head"}, chip, rootSel, home, up, crumbs, extBtn, loupe, filt, newBtn, impBtn, sortSel, modes, refresh, closeBtn));
   if (z.open) {
     const inp = h("input", {type:"search", value:z.q, placeholder:"Rechercher dans tout le Drive " + ACCTS[acct].label + "…",
       oninput:e => { z.q = e.target.value; queueSearch(i); },

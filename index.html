@@ -256,7 +256,7 @@ const PAL = {
 const doFetch = (...a) => (window.__MOCK_FETCH || fetch)(...a);
 const gis = () => window.__MOCK_GOOGLE || window.google;
 const APP_URL = location.origin + location.pathname;
-const APP_VERSION = "2026-11-12.1";
+const APP_VERSION = "2026-11-12.2";
 /* Mise à jour automatique : GitHub Pages garde la page en cache 10 min, on vérifie s'il existe une version plus récente */
 (async () => {
   try {
@@ -894,7 +894,13 @@ async function uploadFile(acct, pid, file){
   return j;
 }
 async function uploadDrop(dt, target){
-  const nodes = await collectDrop(dt);
+  let nodes = await collectDrop(dt);
+  /* Raccourcis Google (Google Drive pour ordinateur) : ce ne sont pas de vrais fichiers, on ne les envoie pas */
+  const gExt = /\.(gdoc|gsheet|gslides|gform|gdraw|gmap|gsite|gjam|gscript)$/i, skipped = [];
+  const prune = list => list.filter(n => { if (n.file && gExt.test(n.file.name)) { skipped.push(n.file.name); return false; } if (n.children) n.children = prune(n.children); return true; });
+  nodes = prune(nodes);
+  if (skipped.length) toast(skipped.length + " raccourci" + (skipped.length > 1 ? "s" : "") + " Google (" + skipped.slice(0, 2).join(", ") + (skipped.length > 2 ? "…" : "") + ") ignoré" + (skipped.length > 1 ? "s" : "") + " : ce sont des liens vers des documents déjà dans Drive. Déplacez-les plutôt dans Cadran.", {err:true, ms:10000});
+  if (!nodes.length && skipped.length) return;
   if (!nodes.length) { toast("Rien à déposer : faites glisser des fichiers (pour un courriel, glissez la pièce jointe ou le message lui-même).", {err:true, ms:8000}); return; }
   const acct = target.acct, root = target.id.startsWith("drive:") ? target.id.slice(6) : target.id;
   const total = countFiles(nodes); let done = 0;

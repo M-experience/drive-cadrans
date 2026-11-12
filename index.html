@@ -257,7 +257,7 @@ const PAL = {
 const doFetch = (...a) => (window.__MOCK_FETCH || fetch)(...a);
 const gis = () => window.__MOCK_GOOGLE || window.google;
 const APP_URL = location.origin + location.pathname;
-const APP_VERSION = "2026-11-12.3";
+const APP_VERSION = "2026-11-12.4";
 /* Mise à jour automatique : GitHub Pages garde la page en cache 10 min, on vérifie s'il existe une version plus récente */
 (async () => {
   try {
@@ -554,8 +554,8 @@ function kind(it){
   if (m === "application/vnd.google-apps.shortcut") return ["link","Raccourci","#7d8aa0","↗"];
   if (m.includes("google-apps.document") || m.includes("wordprocessing") || m === "application/msword") return ["doc","Document","#3d82ea","DOC"];
   if (m.includes("google-apps.spreadsheet") || m.includes("spreadsheet") || m.includes("ms-excel") || m === "text/csv") return ["sheet","Tableur","#3ea05a","XLS"];
-  if (m.includes("google-apps.presentation") || m.includes("presentation") || m.includes("powerpoint")) return ["slides","Présentation","#e9a21b","PPT"];
-  if (m === "application/pdf") return ["pdf","PDF","#e6683a","PDF"];
+  if (m.includes("google-apps.presentation") || m.includes("presentation") || m.includes("powerpoint")) return ["slides","Présentation","#f4b400","PPT"];
+  if (m === "application/pdf") return ["pdf","PDF","#e2382c","PDF"];
   if (m.includes("google-apps.form")) return ["form","Formulaire","#7a52c4","FORM"];
   if (m.startsWith("image/") || m.includes("google-apps.drawing")) return ["img","Image","#9b62dc","IMG"];
   if (m.startsWith("video/")) return ["vid","Vidéo","#d8508a","VID"];
@@ -572,7 +572,11 @@ function folderSvg(id, shared){
 function isShared(it){ const me = ACCTS[it.acct] && ACCTS[it.acct].email; return !!(it.owner && me && it.owner !== me); }
 function iconSvg(it){
   if (isFolder(it)) return folderSvg(it.id, isShared(it));
-  const [,,c,lbl] = kind(it);
+  const [k0,,c,lbl] = kind(it);
+  if (k0 === "slides" || k0 === "pdf") {   /* page blanche cornée + pastille de couleur */
+    const col = k0 === "pdf" ? "#e2382c" : "#f4b400";
+    return '<svg viewBox="-7 -1 70 70"><path d="M6 0h32l18 18v44a6 6 0 0 1-6 6H6a6 6 0 0 1-6-6V6a6 6 0 0 1 6-6z" fill="#fff" stroke="#cfd6e0" stroke-width="2"/><path d="M38 1v11a6 6 0 0 0 6 6h11" fill="none" stroke="#cfd6e0" stroke-width="2"/><rect x="-4" y="36" width="46" height="20" rx="4" fill="'+col+'"/><text x="19" y="51" font-size="13" text-anchor="middle" fill="#fff" font-weight="800" font-family="system-ui,sans-serif">'+lbl+'</text></svg>';
+  }
   const fs = lbl.length > 3 ? 14 : lbl.length > 1 ? 17 : 24;
   return '<svg viewBox="0 0 68 68"><circle cx="34" cy="34" r="34" fill="'+c+'"/><text x="34" y="'+(34 + fs * .36)+'" font-size="'+fs+'" text-anchor="middle" fill="#fff" font-weight="800" font-family="system-ui,sans-serif">'+esc(lbl)+'</text></svg>';
 }

@@ -147,6 +147,7 @@ body.resizing,body.resizing *{cursor:col-resize!important;user-select:none!impor
 .list .srow{grid-template-columns:24px minmax(0,1fr) minmax(90px,34%) 96px}
 .sloc{all:unset;cursor:pointer;color:var(--muted);font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:2px 6px;border-radius:7px}
 .sloc:hover{background:#fff;color:var(--text);text-decoration:underline}
+.appver{font-size:11px;font-weight:600;color:var(--muted);margin-left:4px;vertical-align:middle}
 .syncst{all:unset;cursor:pointer;font-size:12px;font-weight:600;color:var(--muted);padding:3px 8px;border-radius:8px}
 .syncst:hover{background:#fff;color:var(--text)}
 .syncst.err{color:var(--danger)}
@@ -214,7 +215,7 @@ body.extdrag .pane-body[data-dest]::after{content:attr(data-dest);position:absol
 </head>
 <body>
 <header class="top">
-  <h1>Drive · cadrans</h1>
+  <h1>Drive · cadrans <span id="appVer" class="appver"></span></h1>
   <span id="accts" class="grp"></span>
   <span class="grp">Cadrans <span class="seg" id="segCount"></span></span>
   <span class="grp">Disposition <span class="seg" id="segLayout"></span></span>
@@ -256,7 +257,7 @@ const PAL = {
 const doFetch = (...a) => (window.__MOCK_FETCH || fetch)(...a);
 const gis = () => window.__MOCK_GOOGLE || window.google;
 const APP_URL = location.origin + location.pathname;
-const APP_VERSION = "2026-11-12.2";
+const APP_VERSION = "2026-11-12.3";
 /* Mise à jour automatique : GitHub Pages garde la page en cache 10 min, on vérifie s'il existe une version plus récente */
 (async () => {
   try {
@@ -1876,6 +1877,7 @@ async function autoRefresh(){
 }
 setInterval(autoRefresh, 60000);
 setTimeout(syncRun, 800);
+$("#appVer").textContent = "v" + APP_VERSION;
 $("#syncSt").addEventListener("click", async () => {
   if (syncMissing.length) { for (const k of [...syncMissing]) { try { await connect(k); } catch(e) { return; } } return; }
   syncRun(true);

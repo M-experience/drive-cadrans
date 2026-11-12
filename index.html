@@ -87,7 +87,7 @@ input[type=search]{width:110px}
 .tag.edm{background:var(--edm);color:#fff}
 .tag.ext{background:#ecc85a;color:#4a3800}
 /* Liste */
-.list .row{display:grid;grid-template-columns:24px minmax(0,1fr) 104px 64px;align-items:center;gap:9px;padding:5px 12px;user-select:none;cursor:default}
+.list .row{display:grid;grid-template-columns:24px minmax(0,1fr) 142px 64px;align-items:center;gap:9px;padding:5px 12px;user-select:none;cursor:default}
 .list .row:not(.hdr):hover{background:var(--hover)}
 .list .hdr{position:sticky;top:0;background:var(--card-solid);color:var(--muted);font-size:12px;border-bottom:1px solid var(--line);z-index:1}
 .list .nm{display:flex;align-items:center;gap:7px;min-width:0;font-weight:600}
@@ -257,7 +257,7 @@ const PAL = {
 const doFetch = (...a) => (window.__MOCK_FETCH || fetch)(...a);
 const gis = () => window.__MOCK_GOOGLE || window.google;
 const APP_URL = location.origin + location.pathname;
-const APP_VERSION = "2026-11-12.4";
+const APP_VERSION = "2026-11-12.5";
 /* Mise à jour automatique : GitHub Pages garde la page en cache 10 min, on vérifie s'il existe une version plus récente */
 (async () => {
   try {
@@ -1670,7 +1670,7 @@ function renderBody(i){
         items.forEach(it => {
           const row = h("div", {class:"row", title:clean(it.title)}, iconEl(it),
             h("span", {class:"nm"}, h("span", {class:"name"}, clean(it.title)), ownerTag(it), countEl(it)),
-            h("span", {class:"meta"}, fmtDate(it.modifiedTime)), h("span", {class:"meta"}, fmtSize(it)));
+            h("span", {class:"meta"}, fmtDate(it.modifiedTime, true)), h("span", {class:"meta"}, fmtSize(it)));
           attachItem(row, i, it, ctx); body.append(row);
         });
       } else {

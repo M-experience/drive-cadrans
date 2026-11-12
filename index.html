@@ -178,6 +178,8 @@ a.btn{display:inline-block;padding:6px 13px;border-radius:999px;background:var(-
 .modal-bg{position:fixed;inset:0;background:rgba(20,30,45,.3);display:flex;align-items:center;justify-content:center;z-index:30}
 .modal{background:#fff;border-radius:16px;padding:20px;max-width:430px;box-shadow:0 14px 40px rgba(0,0,0,.25)}
 .modal p{margin:0 0 16px}
+body.extdrag .pane-body[data-dest]{outline:2px dashed var(--accent);outline-offset:-8px;border-radius:12px}
+body.extdrag .pane-body[data-dest]::after{content:attr(data-dest);position:absolute;right:14px;bottom:14px;background:var(--accent);color:#fff;font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:999px;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.18)}
 .pane.flash{box-shadow:0 0 0 3px var(--accent)}
 .mtree{max-height:55vh;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:4px;background:#fafcff}
 .mrow{display:flex;align-items:center;gap:7px;padding:5px 8px;border-radius:8px;cursor:pointer;user-select:none;font-size:13px}
@@ -254,7 +256,7 @@ const PAL = {
 const doFetch = (...a) => (window.__MOCK_FETCH || fetch)(...a);
 const gis = () => window.__MOCK_GOOGLE || window.google;
 const APP_URL = location.origin + location.pathname;
-const APP_VERSION = "2026-11-10.1";
+const APP_VERSION = "2026-11-12.1";
 /* Mise à jour automatique : GitHub Pages garde la page en cache 10 min, on vérifie s'il existe une version plus récente */
 (async () => {
   try {
@@ -844,8 +846,10 @@ function makeDropTarget(el, getTarget, cls){
 }
 function endDrag(){ setHL(null); drag = null; }
 document.addEventListener("dragover", e => { if (drag) setHL(null); else if (isExtDrag(e)) { e.preventDefault(); e.dataTransfer.dropEffect = "none"; setHL(null); } });
-document.addEventListener("drop", e => { if (isExtDrag(e)) { e.preventDefault(); setHL(null); } });
-document.addEventListener("dragleave", e => { if (!drag && !e.relatedTarget) setHL(null); });
+document.addEventListener("drop", e => { document.body.classList.remove("extdrag"); if (isExtDrag(e)) { e.preventDefault(); setHL(null); } });
+document.addEventListener("dragenter", e => { if (isExtDrag(e)) document.body.classList.add("extdrag"); });
+document.addEventListener("dragleave", e => { if (!drag && !e.relatedTarget) { setHL(null); document.body.classList.remove("extdrag"); } });
+document.addEventListener("dragend", () => document.body.classList.remove("extdrag"));
 
 /* ===== Dépôt de fichiers venant du Finder, de la messagerie ou du bureau ===== */
 function readEntries(dirEntry){
@@ -1638,6 +1642,7 @@ function renderBody(i){
     body.append(wrap);
   } else {
     makeDropTarget(body, tgt(cur, p.path), "drop-on");
+    if (canCreateIn(cur)) body.dataset.dest = "Déposer ici pour envoyer dans « " + clean(cur.title) + " »";
     const items = itemsOf(acct, cur.id, p, true);
     if (items == null) body.append(paneMsg(i));
     else {

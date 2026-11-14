@@ -181,6 +181,14 @@ a.btn{display:inline-block;padding:6px 13px;border-radius:999px;background:var(-
 .modal p{margin:0 0 16px}
 body.extdrag .pane-body[data-dest]{outline:2px dashed var(--accent);outline-offset:-8px;border-radius:12px}
 body.extdrag .pane-body[data-dest]::after{content:attr(data-dest);position:absolute;right:14px;bottom:14px;background:var(--accent);color:#fff;font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:999px;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.18)}
+.recmenu{width:420px;max-width:92vw}
+.recrow{display:flex !important;align-items:center;gap:10px}
+.recrow .ico{width:22px;height:22px;flex:0 0 22px}
+.rectx{flex:1;min-width:0;display:flex;flex-direction:column;text-align:left}
+.recname{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.recsub{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.recdrv{flex:0 0 auto;display:inline-flex;padding:4px;border-radius:6px;color:var(--muted)}
+.recdrv:hover{background:#eef3fa;color:var(--accent)}
 .pane.flash{box-shadow:0 0 0 3px var(--accent)}
 .mtree{max-height:55vh;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:4px;background:#fafcff}
 .mrow{display:flex;align-items:center;gap:7px;padding:5px 8px;border-radius:8px;cursor:pointer;user-select:none;font-size:13px}
@@ -227,6 +235,7 @@ body.extdrag .pane-body[data-dest]::after{content:attr(data-dest);position:absol
   <span class="grow"></span>
   <span class="busy" id="busy"></span>
   <button class="syncst" id="syncSt" title="Synchronisation des réglages entre postes"></button>
+  <button class="pill-btn" id="btnRecent" title="Documents récemment rangés, déplacés ou déposés">Récents</button>
   <button class="pill-btn" id="btnRefreshAll" title="Relire tous les dossiers affichés depuis Google Drive">Actualiser</button>
   <button class="pill-btn" id="btnUndo" disabled title="Annuler la dernière opération">Annuler</button>
   <button class="pill-btn" id="btnHelp" title="Aide et lancement depuis Drive">?</button>
@@ -261,7 +270,7 @@ const PAL = {
 const doFetch = (...a) => (window.__MOCK_FETCH || fetch)(...a);
 const gis = () => window.__MOCK_GOOGLE || window.google;
 const APP_URL = location.origin + location.pathname;
-const APP_VERSION = "2026-11-14.1";
+const APP_VERSION = "2026-11-14.2";
 /* Mise à jour automatique : GitHub Pages garde la page en cache 10 min, on vérifie s'il existe une version plus récente */
 (async () => {
   try {
@@ -913,17 +922,17 @@ async function uploadDrop(dt, target){
   if (!nodes.length) { toast("Rien à déposer : faites glisser des fichiers (pour un courriel, glissez la pièce jointe ou le message lui-même).", {err:true, ms:8000}); return; }
   const acct = target.acct, root = target.id.startsWith("drive:") ? target.id.slice(6) : target.id;
   const total = countFiles(nodes); let done = 0;
-  const ops = [], errs = [];
+  const ops = [], errs = [], upRec = [];
   const run = async (list, pid) => {
     for (const n of list) {
       try {
         if (n.file) {
           setBusy("Envoi vers Drive " + (done + 1) + "/" + total + " : " + n.file.name);
           const f = await uploadFile(acct, pid, n.file); done++;
-          if (pid === root) ops.push({t:"created", acct, id:f.id});
+          if (pid === root) { ops.push({t:"created", acct, id:f.id}); upRec.push({acct, id:f.id, title:n.file.name, mimeType:n.file.type}); }
         } else {
           const f = await api(acct, "POST", "files", {query:{supportsAllDrives:true, fields:"id"}, body:{name:n.dir, mimeType:"application/vnd.google-apps.folder", parents:[pid]}});
-          if (pid === root) ops.push({t:"created", acct, id:f.id});
+          if (pid === root) { ops.push({t:"created", acct, id:f.id}); upRec.push({acct, id:f.id, title:n.dir, mimeType:FOLDER}); }
           await run(n.children, f.id);
         }
       } catch (e) { if (n.file) done++; errs.push([n.file ? n.file.name : n.dir, e]); if (e.code === "needs_auth") break; }
@@ -932,6 +941,7 @@ async function uploadDrop(dt, target){
   await run(nodes, root);
   setBusy("");
   invalidate(acct, new Set([target.id, root]));
+  if (upRec.length) addRecent(upRec, target, "Déposé");
   if (ops.length) { setUndo({ops, restorePaths:[], keys:[]}); toast((total - errs.length) + " fichier" + (total - errs.length > 1 ? "s" : "") + " déposé" + (total - errs.length > 1 ? "s" : "") + " dans « " + clean(target.title) + " » (compte " + ACCTS[acct].label + ").", {undo:true, acts:destActs(target), ms:14000}); }
   errs.slice(0, 4).forEach(([nm, e]) => toast("« " + nm + " » n'a pas pu être envoyé. " + errMsg(e), {err:true, ms:9000}));
   refreshAll();
@@ -1315,6 +1325,7 @@ async function doMove(items, target){
   invalidate(acct, keys); sel.forEach(s => s.clear());
   if (ops.length) {
     setUndo({ops, restorePaths, keys:[[acct, [...keys]]]});
+    addRecent(items.filter(it => ops.some(o => o.id === it.id)), target, "Déplacé");
     toast(labelOf(ops) + " déplacé" + (ops.length > 1 ? "s" : "") + " vers « " + clean(target.title) + " ».", {undo:true, acts:destActs(target), ms:14000});
   }
   errs.forEach(([it, e]) => toast("« " + clean(it.title) + " » n'a pas été déplacé. " + errMsg(e), {err:true, ms:9000}));
@@ -1360,7 +1371,7 @@ async function doTransfer(items, target, isMove){
   setBusy(isMove ? "Transfert…" : "Copie…");
   for (const it of items) {
     let r;
-    try { r = await copyTree(it, dest); ops.push({t:"trash", acct:dst, id:r.id, title:it.title}); }
+    try { r = await copyTree(it, dest); ops.push({t:"trash", acct:dst, id:r.id, title:it.title, mimeType:it.mimeType}); }
     catch (e) { errs.push([it, e]); continue; }
     if (isMove) {
       if (!r.complete) { kept.push(it); continue; }
@@ -1375,6 +1386,7 @@ async function doTransfer(items, target, isMove){
   const done = ops.filter(o => o.t === "trash");
   if (done.length) {
     setUndo({ops, restorePaths:[], keys:[]});
+    addRecent(done, target, isMove ? "Transféré" : "Copié");
     toast(labelOf(done) + (isMove ? " transféré" : " copié") + (done.length > 1 ? "s" : "") + " vers « " + clean(target.title) + " » (compte " + ACCTS[dst].label + ")" + (n > done.length ? ", " + n + " éléments au total" : "") + ".", {undo:true, acts:destActs(target), ms:14000});
   }
   if (kept.length) toast("Copié, mais l'original de " + labelOf(kept) + " est resté en place (copie incomplète ou mise à la corbeille refusée : seul le propriétaire peut le faire).", {err:true, ms:11000});
@@ -1463,6 +1475,57 @@ function openFolderInPane(t){
   const p = S.panes[i]; p.path = path; p.preview = null; srch[i].open = false; sel[i].clear();
   renderPane(i); loadPane(i); save();
   const el = document.querySelectorAll(".pane")[i]; if (el) { el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 900); }
+}
+/* ===== Documents récemment rangés (déplacés, copiés, déposés) ===== */
+const REC_KEY = "drive-cadrans-web.recent";
+let recent = []; try { recent = JSON.parse(localStorage.getItem(REC_KEY)) || []; } catch(e) {}
+function addRecent(list, target, verb){
+  const dest = {acct:target.acct, id:target.id, title:target.title, path:(target.path || []).map(c => ({acct:c.acct, id:c.id, title:c.title, owner:c.owner || ""}))};
+  const now = Date.now();
+  for (const it of list.slice().reverse()) {
+    recent = recent.filter(r => !(r.id === it.id && r.acct === it.acct));
+    recent.unshift({acct:it.acct, id:it.id, title:it.title, mimeType:it.mimeType || "", verb, t:now, dest});
+  }
+  recent = recent.slice(0, 40);
+  try { localStorage.setItem(REC_KEY, JSON.stringify(recent)); } catch(e) {}
+  const b = document.getElementById("btnRecent"); if (b) b.disabled = !recent.length;
+}
+function fmtWhen(t){
+  const d = new Date(t), now = new Date();
+  const hm = d.toLocaleTimeString("fr-FR", {hour:"2-digit", minute:"2-digit"});
+  if (d.toDateString() === now.toDateString()) return hm;
+  const y = new Date(now); y.setDate(now.getDate() - 1);
+  if (d.toDateString() === y.toDateString()) return "hier " + hm;
+  return d.toLocaleDateString("fr-FR", {day:"2-digit", month:"short"}) + " " + hm;
+}
+function revealRecent(r){
+  openFolderInPane(r.dest);
+  let tries = 0;
+  const pick = () => {
+    const i = S.panes.findIndex((p, k) => k < S.count && p.path[p.path.length - 1].id === r.dest.id && p.path[0].acct === r.dest.acct);
+    const e = i >= 0 ? cache.get(ck(r.dest.acct, r.dest.id)) : null;
+    const it = e && e.items.find(x => x.id === r.id);
+    if (!it) { if (++tries < 20) setTimeout(pick, 250); return; }
+    sel[i].clear(); sel[i].set(it.id, it); renderBody(i);
+    setTimeout(() => { const el = document.querySelectorAll(".pane")[i].querySelector(".sel"); if (el) el.scrollIntoView({block:"center"}); }, 50);
+  };
+  setTimeout(pick, 200);
+}
+function recentMenu(x, y){
+  popMenu(x, y, (m, done) => {
+    m.classList.add("recmenu");
+    m.append(h("div", {class:"mt"}, "Récemment rangés"));
+    if (!recent.length) { m.append(h("div", {class:"ms"}, "Aucun document rangé pour l'instant.")); return; }
+    for (const r of recent.slice(0, 20)) {
+      const a = ACCTS[r.acct];
+      const drv = h("a", {class:"recdrv", href:"https://drive.google.com/open?id=" + encodeURIComponent(r.id) + (a && a.email ? "&authuser=" + encodeURIComponent(a.email) : ""), target:"_blank", rel:"noopener", title:"Ouvrir dans Google Drive", html:ICON.ext, onclick:e => { e.stopPropagation(); done(); }});
+      m.append(h("button", {class:"mi recrow", title:"Afficher dans son dossier : " + (r.dest.path.length ? r.dest.path.map(c => clean(c.title)).join(" › ") : clean(r.dest.title)), onclick:() => { done(); revealRecent(r); }},
+        h("span", {class:"ico", html:iconSvg({mimeType:r.mimeType, title:r.title, id:r.id})}),
+        h("span", {class:"rectx"}, h("span", {class:"recname"}, clean(r.title)), h("span", {class:"recsub"}, r.verb + " vers « " + clean(r.dest.title) + " » · " + fmtWhen(r.t))),
+        drv));
+    }
+    m.append(h("button", {class:"mi", style:"color:var(--muted);font-size:12px", onclick:() => { recent = []; try { localStorage.removeItem(REC_KEY); } catch(e) {} const b = document.getElementById("btnRecent"); if (b) b.disabled = true; done(); }}, "Vider la liste"));
+  });
 }
 const destActs = t => [["Ouvrir le dossier", () => openFolderInPane(t)], ["Dans Drive", () => window.open(driveFolderUrl(t), "_blank", "noopener")]];
 
@@ -1891,6 +1954,8 @@ function setupScreen(){
 if (!CLIENT_ID) { setupScreen(); return; }
 $("#chkConfirm").addEventListener("change", e => { S.confirm = e.target.checked; save(); });
 $("#btnUndo").addEventListener("click", undo);
+$("#btnRecent").disabled = !recent.length;
+$("#btnRecent").addEventListener("click", e => { const r = e.target.getBoundingClientRect(); recentMenu(Math.max(8, r.right - 420), r.bottom + 8); });
 $("#btnHelp").addEventListener("click", e => { const r = e.target.getBoundingClientRect(); helpMenu(r.right - 380, r.bottom + 8); });
 document.addEventListener("keydown", e => {
   const tag = (e.target && e.target.tagName) || "";

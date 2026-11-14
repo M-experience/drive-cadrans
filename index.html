@@ -188,6 +188,10 @@ body.extdrag .pane-body[data-dest]::after{content:attr(data-dest);position:absol
 .mrow.on{background:var(--accent);color:#fff}
 .mrow .ico{width:18px;height:18px}
 .mname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.modal .msearch{width:100%;box-sizing:border-box;margin:0 0 8px;padding:8px 11px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:13px;background:#fff}
+.modal .msearch:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(47,111,214,.15)}
+.mname .mpath{display:block;font-size:11px;font-weight:500;color:#8a94a6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mrow.on .mpath{color:#e8efff}
 .mchev{width:14px;text-align:center;color:#8a94a6;transition:transform .12s;font-weight:700}
 .mchev.open{transform:rotate(90deg)}
 .mrow.on .mchev{color:#fff}
@@ -257,7 +261,7 @@ const PAL = {
 const doFetch = (...a) => (window.__MOCK_FETCH || fetch)(...a);
 const gis = () => window.__MOCK_GOOGLE || window.google;
 const APP_URL = location.origin + location.pathname;
-const APP_VERSION = "2026-11-12.5";
+const APP_VERSION = "2026-11-14.1";
 /* Mise à jour automatique : GitHub Pages garde la page en cache 10 min, on vérifie s'il existe une version plus récente */
 (async () => {
   try {
@@ -1133,6 +1137,54 @@ function movePicker(items){
   const okBtn = h("button", {class:"primary", disabled:true}, "Déplacer ici");
   const info = h("div", {class:"ms", style:"min-height:18px;margin:8px 0 12px"}, "Choisissez le dossier de destination.");
   const close = () => bg.remove();
+  const choose = (entry, row) => {
+    if (chosenRow) chosenRow.classList.remove("on");
+    chosen = entry; chosenRow = row; row.classList.add("on");
+    const here = items.every(it => keyOf(it.acct, it.parentId) === entry.id || destOf(entry) === it.parentId);
+    okBtn.disabled = here;
+    info.textContent = here ? "Déjà dans ce dossier." : (entry.acct !== src ? "Autre compte (" + ACCTS[entry.acct].label + ") : vous choisirez entre copier et déplacer." : "Destination : " + entry.path.map(c => clean(c.title)).join(" › "));
+  };
+  /* Recherche d'un dossier de destination par mots-clés, dans tous les comptes connectés */
+  const results = h("div", {class:"mtree", style:"display:none"});
+  const sInput = h("input", {type:"search", class:"msearch", placeholder:"Rechercher un dossier par mots-clés", autocomplete:"off"});
+  let sTimer = null, sSeq = 0;
+  const acctTag = a => h("span", {class:"tag" + (a === "edm" ? " edm" : ""), style:a === "perso" ? "background:var(--perso);color:#fff" : ""}, ACCTS[a].label.toUpperCase());
+  const runFolderSearch = async () => {
+    const q = sInput.value.trim(), seq = ++sSeq;
+    if (!q) { results.style.display = "none"; tree.style.display = ""; return; }
+    tree.style.display = "none"; results.style.display = ""; results.textContent = "";
+    results.append(h("div", {class:"ms", style:"padding:6px 8px"}, "Recherche…"));
+    const words = q.split(/\s+/).filter(Boolean).slice(0, 6);
+    const cond = words.map(w => "name contains '" + qid(w) + "'").join(" and ") + " and mimeType = '" + FOLDER + "' and trashed = false";
+    const found = [], errs = [];
+    for (const a of ACCT_KEYS) {
+      if (!connected(a)) continue;
+      try {
+        const res = await api(a, "GET", "files", {query:{q:cond, fields:"files(id,name,mimeType,parents,owners(emailAddress),driveId)", pageSize:40, orderBy:"modifiedTime desc", corpora:"allDrives", supportsAllDrives:true, includeItemsFromAllDrives:true}});
+        for (const f of (res.files || [])) if (!moving.has(f.id)) found.push({a, f});
+      } catch (e) { errs.push(ACCTS[a].label + " : " + errMsg(e)); }
+    }
+    if (seq !== sSeq) return;
+    results.textContent = "";
+    errs.forEach(t => results.append(h("div", {class:"ms", style:"color:var(--danger);padding:6px 8px"}, t)));
+    if (!found.length) { results.append(h("div", {class:"ms", style:"padding:6px 8px"}, "Aucun dossier ne correspond.")); return; }
+    for (const {a, f} of found) {
+      const sub = h("span", {class:"mpath"}, "…");
+      const row = h("div", {class:"mrow", title:clean(f.name)}, h("span", {class:"ico", html:folderSvg(f.id, false)}), h("span", {class:"mname"}, clean(f.name), sub), acctTag(a));
+      let entry = null;
+      row.addEventListener("click", () => { if (!entry) { info.textContent = "Recherche de l'emplacement…"; return; } choose(entry, row); });
+      row.addEventListener("dblclick", () => { if (entry) { choose(entry, row); if (!okBtn.disabled) okBtn.click(); } });
+      results.append(row);
+      chainOf(a, f).then(({root, chain}) => {
+        if (seq !== sSeq) return;
+        const self = {acct:a, id:f.id, title:f.name, owner:(f.owners && f.owners[0] && f.owners[0].emailAddress) || ""};
+        entry = Object.assign({}, self, {path:[root, ...chain, self]});
+        sub.textContent = [root, ...chain].map(c => clean(c.title)).join(" › ");
+      }).catch(() => { sub.textContent = ""; });
+    }
+  };
+  sInput.addEventListener("input", () => { clearTimeout(sTimer); sTimer = setTimeout(runFolderSearch, 350); });
+  sInput.addEventListener("keydown", e => { if (e.key === "Escape" && sInput.value) { e.stopPropagation(); sInput.value = ""; runFolderSearch(); } });
   const node = (entry, depth, parentEl) => {
     const wrap = h("div");
     const kids = h("div", {style:"display:none"});
@@ -1154,13 +1206,7 @@ function movePicker(items){
       }
     };
     chev.addEventListener("click", e => { e.stopPropagation(); toggle(); });
-    row.addEventListener("click", () => {
-      if (chosenRow) chosenRow.classList.remove("on");
-      chosen = entry; chosenRow = row; row.classList.add("on");
-      const here = items.every(it => keyOf(it.acct, it.parentId) === entry.id || destOf(entry) === it.parentId);
-      okBtn.disabled = here;
-      info.textContent = here ? "Déjà dans ce dossier." : (entry.acct !== src ? "Autre compte (" + ACCTS[entry.acct].label + ") : vous choisirez entre copier et déplacer." : "Destination : " + entry.path.map(c => clean(c.title)).join(" › "));
-    });
+    row.addEventListener("click", () => choose(entry, row));
     row.addEventListener("dblclick", () => toggle());
     wrap.append(row, kids); parentEl.append(wrap);
     if (depth === 0 && entry.acct === src || openIds.has(entry.acct + ":" + entry.id)) toggle(true);
@@ -1180,11 +1226,12 @@ function movePicker(items){
   const bg = h("div", {class:"modal-bg", onclick:e => { if (e.target === bg) close(); }},
     h("div", {class:"modal", style:"width:520px;max-width:92vw"},
       h("p", {style:"margin:0 0 10px;font-weight:700"}, "Déplacer " + labelOf(items)),
-      tree, info,
+      sInput, tree, results, info,
       h("div", {class:"acts"}, newHere, h("span", {style:"flex:1"}), h("button", {onclick:close}, "Annuler"), okBtn)));
   const key = e => { if (e.key === "Escape") { close(); document.removeEventListener("keydown", key, true); } };
   document.addEventListener("keydown", key, true);
   document.body.append(bg);
+  setTimeout(() => sInput.focus(), 50);
 }
 function parentEntry(it){
   if (!it.parentId) return null;
